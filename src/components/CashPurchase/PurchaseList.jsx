@@ -1,7 +1,6 @@
-// src/components/CashPurchase/PurchaseList.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaPlus, FaEdit, FaTrash, FaLock, FaBoxes, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaEye, FaTrash, FaLock, FaBoxes, FaSearch } from 'react-icons/fa';
 import { getTradeSectionLabel, getTradeSectionColor } from '../../data/preDefinedLists';
 
 const PurchaseList = () => {
@@ -175,6 +174,13 @@ const PurchaseList = () => {
                                         </td>
                                         <td>
                                             <div className="action-buttons">
+                                                <Link
+                                                    to={`/purchases/view/${purchase.cpNo}`}
+                                                    className="btn btn-outline btn-sm"
+                                                    title="View"
+                                                >
+                                                    <FaEye />
+                                                </Link>
                                                 <Link
                                                     to={`/purchases/edit/${purchase.cpNo}`}
                                                     className="btn btn-outline btn-sm"

@@ -1,0 +1,211 @@
+// src/components/CashPurchase/PurchaseDetail.jsx
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { FaArrowLeft, FaEdit, FaLock, FaBoxes } from 'react-icons/fa';
+import { getTradeSectionLabel, getTradeSectionColor } from '../../data/preDefinedLists';
+
+const PurchaseDetail = () => {
+    const navigate = useNavigate();
+    const { id } = useParams();
+    const [purchase, setPurchase] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        loadPurchase();
+    }, [id]);
+
+    const loadPurchase = () => {
+        try {
+            const data = JSON.parse(localStorage.getItem('snglData'));
+            if (data && data.purchases) {
+                const found = data.purchases.find(p => p.cpNo === id);
+                setPurchase(found || null);
+            }
+        } catch (error) {
+            console.error('Error loading purchase:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return <div className="loading">Loading cash purchase details...</div>;
+    }
+
+    if (!purchase) {
+        return (
+            <div className="page-container">
+                <div className="card text-center" style={{ padding: '40px' }}>
+                    <h2>Cash Purchase Not Found</h2>
+                    <p style={{ margin: '16px 0', color: '#6b7280' }}>Purchase number "{id}" could not be found.</p>
+                    <button onClick={() => navigate('/purchases')} className="btn btn-primary">
+                        <FaArrowLeft /> Back to Cash Purchases
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="page-container">
+            <div className="page-header">
+                <div>
+                    <h1 className="page-title">Cash Purchase: {purchase.cpNo}</h1>
+                    <span className="badge badge-secondary" style={{ marginTop: '8px', color: getTradeSectionColor(purchase.tradeSection) }}>
+                        {getTradeSectionLabel(purchase.tradeSection)}
+                    </span>
+                </div>
+                <div className="page-actions">
+                    <button onClick={() => navigate('/purchases')} className="btn btn-outline">
+                        <FaArrowLeft /> Back
+                    </button>
+                    <Link to={`/purchases/edit/${purchase.cpNo}`} className="btn btn-primary">
+                        <FaEdit /> Edit Purchase
+                    </Link>
+                </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
+                    Purchase Details
+                </h3>
+                <div className="detail-grid">
+                    <div>
+                        <span className="label">CP Number</span>
+                        <span className="value">{purchase.cpNo}</span>
+                    </div>
+                    <div>
+                        <span className="label">Purchase Date</span>
+                        <span className="value">{new Date(purchase.purchaseDate).toLocaleDateString()}</span>
+                    </div>
+                    <div>
+                        <span className="label">Bill / Invoice No</span>
+                        <span className="value">{purchase.billInvoiceNo || '-'}</span>
+                    </div>
+                    <div>
+                        <span className="label">Purchased By</span>
+                        <span className="value">{purchase.purchasedBy}</span>
+                    </div>
+                    <div>
+                        <span className="label">Job No</span>
+                        <span className="value">{purchase.jobNo || '-'}</span>
+                    </div>
+                    <div>
+                        <span className="label">Expense Head</span>
+                        <span className="value">{purchase.expenseHead || '-'}</span>
+                    </div>
+                    <div>
+                        <span className="label">Total Amount</span>
+                        <span className="value" style={{ color: '#059669', fontWeight: '700' }}>${purchase.totalAmount}</span>
+                    </div>
+                    <div>
+                        <span className="label">Stock Update</span>
+                        <span className="value">
+                            {purchase.addedToStock ? (
+                                <span className="badge badge-success"><FaBoxes /> Added to Stock</span>
+                            ) : (
+                                <span className="badge badge-secondary">Consumable</span>
+                            )}
+                        </span>
+                    </div>
+                </div>
+
+                {purchase.remarks && (
+                    <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f3f4f6' }}>
+                        <span className="label" style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px' }}>
+                            Remarks
+                        </span>
+                        <p style={{ margin: 0, color: '#374151' }}>{purchase.remarks}</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Purchase Items */}
+            <div className="card" style={{ marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
+                    Purchased Items ({purchase.items ? purchase.items.length : 0})
+                </h3>
+                <div className="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Item Name</th>
+                                <th>Quantity</th>
+                                <th>Unit</th>
+                                <th>Unit Price</th>
+                                <th>Total Price</th>
+                                <th>Stock Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {purchase.items && purchase.items.map((item, idx) => (
+                                <tr key={idx}>
+                                    <td><strong>{item.itemName}</strong></td>
+                                    <td>{item.quantity}</td>
+                                    <td>{item.unit}</td>
+                                    <td>${item.unitPrice}</td>
+                                    <td>${item.total}</td>
+                                    <td>
+                                        {item.isStoreItem ? (
+                                            <span className="badge badge-success">Store Item</span>
+                                        ) : (
+                                            <span className="badge badge-secondary">Direct Expense</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Source Documents */}
+            <div className="card">
+                <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
+                    Source Documents ({purchase.sourceDocuments ? purchase.sourceDocuments.length : 0})
+                </h3>
+
+                {purchase.sourceDocuments && purchase.sourceDocuments.length > 0 ? (
+                    <div className="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Source Type</th>
+                                    <th>Reference</th>
+                                    <th>Allocation</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {purchase.sourceDocuments.map((doc, idx) => (
+                                    <tr key={idx}>
+                                        <td><span className="badge badge-info">{doc.sourceType}</span></td>
+                                        <td>
+                                            {doc.sourceType === 'COMPLAINT' ? (
+                                                <Link to={`/complaints/view/${encodeURIComponent(doc.reference)}`} style={{ color: '#2563eb', fontWeight: '600', textDecoration: 'underline' }}>
+                                                    {doc.reference}
+                                                </Link>
+                                            ) : (
+                                                <strong>{doc.reference}</strong>
+                                            )}
+                                        </td>
+                                        <td><strong>${doc.allocation}</strong></td>
+                                        <td>
+                                            <span className={`badge ${doc.isLocked ? 'badge-success' : 'badge-warning'}`}>
+                                                {doc.isLocked ? <><FaLock /> Locked</> : (doc.status || 'Pending')}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No source documents attached.</p>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default PurchaseDetail;

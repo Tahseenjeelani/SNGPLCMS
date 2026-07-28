@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { FaPlus, FaTrash, FaSave, FaTimes } from 'react-icons/fa';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { FaPlus, FaTrash, FaSave, FaTimes, FaEye } from 'react-icons/fa';
 import { UNITS, PROCUREMENT_TYPES } from '../../data/preDefinedLists';
 import { api } from '../../services/api';
 
@@ -584,6 +584,7 @@ const ComplaintForm = () => {
                                                     <th>Unit</th>
                                                     <th>Issued To</th>
                                                     <th>Status</th>
+                                                    <th>Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -598,6 +599,11 @@ const ComplaintForm = () => {
                                                             <span className={`badge ${issue.status === 'COMPLETED' ? 'badge-success' : issue.isLocked ? 'badge-info' : 'badge-warning'}`}>
                                                                 {issue.isLocked ? '🔒 Locked' : issue.status}
                                                             </span>
+                                                        </td>
+                                                        <td>
+                                                            <Link to={`/issues/view/${issue.irNo}`} className="btn btn-outline btn-sm" title="View Issue">
+                                                                <FaEye /> View
+                                                            </Link>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -620,6 +626,7 @@ const ComplaintForm = () => {
                                                     <th>Allocation</th>
                                                     <th>Purchased By</th>
                                                     <th>Status</th>
+                                                    <th>Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -633,6 +640,11 @@ const ComplaintForm = () => {
                                                             <span className={`badge ${purchase.status === 'COMPLETED' ? 'badge-success' : purchase.isLocked ? 'badge-info' : 'badge-warning'}`}>
                                                                 {purchase.isLocked ? '🔒 Locked' : purchase.status}
                                                             </span>
+                                                        </td>
+                                                        <td>
+                                                            <Link to={`/purchases/view/${purchase.cpNo}`} className="btn btn-outline btn-sm" title="View Purchase">
+                                                                <FaEye /> View
+                                                            </Link>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -656,6 +668,7 @@ const ComplaintForm = () => {
                                                     <th>Unit</th>
                                                     <th>Returned By</th>
                                                     <th>Status</th>
+                                                    <th>Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -670,6 +683,11 @@ const ComplaintForm = () => {
                                                             <span className={`badge ${scrap.status === 'COMPLETED' ? 'badge-success' : scrap.isLocked ? 'badge-info' : 'badge-warning'}`}>
                                                                 {scrap.isLocked ? '🔒 Locked' : scrap.status}
                                                             </span>
+                                                        </td>
+                                                        <td>
+                                                            <Link to={`/scraps/view/${scrap.srNo}`} className="btn btn-outline btn-sm" title="View Scrap">
+                                                                <FaEye /> View
+                                                            </Link>
                                                         </td>
                                                     </tr>
                                                 ))}

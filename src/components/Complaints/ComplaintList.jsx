@@ -194,7 +194,14 @@ const ComplaintList = () => {
                                         <td>
                                             <div className="action-buttons">
                                                 <Link
-                                                    to={`/complaints/edit/${complaint.id}`}
+                                                    to={`/complaints/view/${encodeURIComponent(complaint.id)}`}
+                                                    className="btn btn-outline btn-sm"
+                                                    title="View"
+                                                >
+                                                    <FaEye />
+                                                </Link>
+                                                <Link
+                                                    to={`/complaints/edit/${encodeURIComponent(complaint.id)}`}
                                                     className="btn btn-outline btn-sm"
                                                     title="Edit"
                                                 >
@@ -202,7 +209,7 @@ const ComplaintList = () => {
                                                 </Link>
                                                 {!complaint.isCompleted && complaint.status !== 'COMPLETED' && (
                                                     <Link
-                                                        to={`/complaints/complete/${complaint.id}`}
+                                                        to={`/complaints/complete/${encodeURIComponent(complaint.id)}`}
                                                         className="btn btn-success btn-sm"
                                                         title="Complete"
                                                     >

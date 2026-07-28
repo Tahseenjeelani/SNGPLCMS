@@ -1,7 +1,6 @@
-// src/components/IssueRegister/IssueList.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaPlus, FaEdit, FaTrash, FaLock, FaUnlock, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaEye, FaTrash, FaLock, FaUnlock, FaSearch } from 'react-icons/fa';
 import { getTradeSectionLabel, getTradeSectionColor } from '../../data/preDefinedLists';
 
 const IssueList = () => {
@@ -201,6 +200,13 @@ const IssueList = () => {
                                             </td>
                                             <td>
                                                 <div className="action-buttons">
+                                                    <Link
+                                                        to={`/issues/view/${issue.irNo}`}
+                                                        className="btn btn-outline btn-sm"
+                                                        title="View"
+                                                    >
+                                                        <FaEye />
+                                                    </Link>
                                                     <Link
                                                         to={`/issues/edit/${issue.irNo}`}
                                                         className="btn btn-outline btn-sm"

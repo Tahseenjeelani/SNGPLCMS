@@ -83,15 +83,21 @@ const IssueForm = () => {
     };
 
     const handleAddSourceDoc = () => {
-        if (!newSourceDoc.reference || !newSourceDoc.allocation) {
-            alert('Please fill all fields');
+        if (!newSourceDoc.reference || !newSourceDoc.reference.trim()) {
+            alert('Source document reference is required');
+            return;
+        }
+
+        if (!newSourceDoc.allocation || Number(newSourceDoc.allocation) <= 0) {
+            alert('Allocation must be greater than 0');
             return;
         }
 
         // Check if total allocation exceeds quantity
-        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + doc.allocation, 0);
-        if (totalAllocated + Number(newSourceDoc.allocation) > formData.quantity) {
-            alert('Total allocation exceeds quantity');
+        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
+        const expectedTotal = Number(formData.quantity) || 0;
+        if (totalAllocated + Number(newSourceDoc.allocation) > expectedTotal) {
+            alert(`Total allocation (${totalAllocated + Number(newSourceDoc.allocation)}) exceeds quantity (${expectedTotal})`);
             return;
         }
 
@@ -99,6 +105,7 @@ const IssueForm = () => {
             ...prev,
             sourceDocuments: [...prev.sourceDocuments, {
                 ...newSourceDoc,
+                reference: newSourceDoc.reference.trim(),
                 allocation: Number(newSourceDoc.allocation),
                 status: 'PENDING',
                 isLocked: false,
@@ -131,9 +138,10 @@ const IssueForm = () => {
         }
 
         // Check if total allocation equals quantity
-        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + doc.allocation, 0);
-        if (totalAllocated !== formData.quantity) {
-            alert(`Total allocation (${totalAllocated}) must equal quantity (${formData.quantity})`);
+        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
+        const expectedTotal = Number(formData.quantity) || 0;
+        if (totalAllocated !== expectedTotal) {
+            alert(`Total allocation (${totalAllocated}) must equal ${expectedTotal}`);
             return;
         }
 
@@ -218,6 +226,9 @@ const IssueForm = () => {
             alert('Error saving issue');
         }
     };
+
+    const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
+    const expectedTotal = Number(formData.quantity) || 0;
 
     return (
         <div className="page-container">
@@ -348,6 +359,17 @@ const IssueForm = () => {
                 {/* Source Documents Section */}
                 <div className="items-section">
                     <h3>Source Documents</h3>
+                    <div className="allocation-summary" style={{ marginBottom: '12px', fontSize: '0.95rem', fontWeight: '500' }}>
+                        <span>Total Allocated: </span>
+                        <strong style={{ color: totalAllocated === expectedTotal ? '#059669' : '#dc2626' }}>
+                            {totalAllocated} / {expectedTotal}
+                        </strong>
+                        {totalAllocated !== expectedTotal && (
+                            <span style={{ color: '#dc2626', marginLeft: '8px' }}>
+                                ⚠️ Must equal {expectedTotal}
+                            </span>
+                        )}
+                    </div>
                     <div className="items-grid">
                         <select
                             value={newSourceDoc.sourceType}
@@ -360,7 +382,7 @@ const IssueForm = () => {
                         </select>
                         <input
                             type="text"
-                            placeholder="Reference (e.g., 01/07/2026)"
+                            placeholder="Reference (e.g., 01/07/2026) *"
                             value={newSourceDoc.reference}
                             onChange={(e) => setNewSourceDoc(prev => ({ ...prev, reference: e.target.value }))}
                             className="form-control"
@@ -373,16 +395,18 @@ const IssueForm = () => {
                             className="form-control"
                             min="1"
                         />
-                        <button type="button" className="btn btn-primary" onClick={handleAddSourceDoc}>
+                        <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={handleAddSourceDoc}
+                            disabled={!newSourceDoc.reference || !newSourceDoc.reference.trim()}
+                        >
                             <FaPlus /> Add
                         </button>
                     </div>
 
                     {formData.sourceDocuments.length > 0 && (
                         <div className="items-list">
-                            <div className="allocation-summary">
-                                Total Allocated: {formData.sourceDocuments.reduce((sum, doc) => sum + doc.allocation, 0)} / {formData.quantity}
-                            </div>
                             <table>
                                 <thead>
                                     <tr>

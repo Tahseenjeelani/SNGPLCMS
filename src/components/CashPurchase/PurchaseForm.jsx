@@ -116,13 +116,14 @@ const PurchaseForm = () => {
     };
 
     const handleAddSourceDoc = () => {
-        if (!newSourceDoc.reference || !newSourceDoc.allocation) {
-            alert('Please fill all fields');
+        if (!newSourceDoc.reference || !newSourceDoc.reference.trim()) {
+            alert('Source document reference is required');
             return;
         }
 
-        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + doc.allocation, 0);
-        if (totalAllocated + Number(newSourceDoc.allocation) > formData.totalAmount) {
+        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
+        const expectedTotal = calculateTotal();
+        if (totalAllocated + Number(newSourceDoc.allocation) > expectedTotal) {
             alert('Total allocation exceeds total amount');
             return;
         }
@@ -131,6 +132,7 @@ const PurchaseForm = () => {
             ...prev,
             sourceDocuments: [...prev.sourceDocuments, {
                 ...newSourceDoc,
+                reference: newSourceDoc.reference.trim(),
                 allocation: Number(newSourceDoc.allocation),
                 allocatedItems: formData.items.map(item => item.itemName),
                 status: 'PENDING',
@@ -182,9 +184,9 @@ const PurchaseForm = () => {
         }
 
         // Check allocation
-        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + doc.allocation, 0);
+        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
         if (totalAllocated !== total) {
-            alert(`Total allocation (${totalAllocated}) must equal total amount (${total})`);
+            alert(`Total allocation (${totalAllocated}) must equal ${total}`);
             return;
         }
 
@@ -315,6 +317,9 @@ const PurchaseForm = () => {
             alert('Error saving purchase');
         }
     };
+
+    const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
+    const expectedTotal = calculateTotal();
 
     return (
         <div className="page-container">
@@ -557,6 +562,17 @@ const PurchaseForm = () => {
                 {/* Source Documents Section */}
                 <div className="items-section">
                     <h3>Source Documents</h3>
+                    <div className="allocation-summary" style={{ marginBottom: '12px', fontSize: '0.95rem', fontWeight: '500' }}>
+                        <span>Total Allocated: </span>
+                        <strong style={{ color: totalAllocated === expectedTotal ? '#059669' : '#dc2626' }}>
+                            {totalAllocated} / {expectedTotal}
+                        </strong>
+                        {totalAllocated !== expectedTotal && (
+                            <span style={{ color: '#dc2626', marginLeft: '8px' }}>
+                                ⚠️ Must equal {expectedTotal}
+                            </span>
+                        )}
+                    </div>
                     <div className="items-grid">
                         <select
                             value={newSourceDoc.sourceType}
@@ -583,16 +599,18 @@ const PurchaseForm = () => {
                             min="0"
                             step="0.01"
                         />
-                        <button type="button" className="btn btn-primary" onClick={handleAddSourceDoc}>
+                        <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={handleAddSourceDoc}
+                            disabled={!newSourceDoc.reference || !newSourceDoc.reference.trim()}
+                        >
                             <FaPlus /> Add
                         </button>
                     </div>
 
                     {formData.sourceDocuments.length > 0 && (
                         <div className="items-list">
-                            <div className="allocation-summary">
-                                Total Allocated: ${formData.sourceDocuments.reduce((sum, doc) => sum + doc.allocation, 0)} / ${calculateTotal()}
-                            </div>
                             <table>
                                 <thead>
                                     <tr>

@@ -17,6 +17,76 @@ router.get('/', async (req, res) => {
     }
 });
 
+// Get linked entries for a complaint (Issues, Purchases, Scraps)
+router.get('/:id/links', async (req, res) => {
+    try {
+        const complaintId = decodeURIComponent(req.params.id);
+
+        const issues = await Issue.find({ 'sourceDocuments.reference': complaintId });
+        const purchases = await Purchase.find({ 'sourceDocuments.reference': complaintId });
+        const scraps = await Scrap.find({ 'sourceDocuments.reference': complaintId });
+
+        const formattedIssues = [];
+        issues.forEach(issue => {
+            const matchingDoc = issue.sourceDocuments.find(doc => doc.reference === complaintId);
+            if (matchingDoc) {
+                formattedIssues.push({
+                    irNo: issue.irNo,
+                    itemName: issue.itemName,
+                    allocation: matchingDoc.allocation,
+                    unit: issue.unit,
+                    status: matchingDoc.status || 'PENDING',
+                    isLocked: matchingDoc.isLocked || false,
+                    issueDate: issue.issueDate,
+                    issuedTo: issue.issuedTo
+                });
+            }
+        });
+
+        const formattedPurchases = [];
+        purchases.forEach(purchase => {
+            const matchingDoc = purchase.sourceDocuments.find(doc => doc.reference === complaintId);
+            if (matchingDoc) {
+                formattedPurchases.push({
+                    cpNo: purchase.cpNo,
+                    items: purchase.items ? purchase.items.map(item => item.itemName || item) : [],
+                    allocation: matchingDoc.allocation,
+                    status: matchingDoc.status || 'PENDING',
+                    isLocked: matchingDoc.isLocked || false,
+                    purchaseDate: purchase.purchaseDate,
+                    purchasedBy: purchase.purchasedBy
+                });
+            }
+        });
+
+        const formattedScraps = [];
+        scraps.forEach(scrap => {
+            const matchingDoc = scrap.sourceDocuments.find(doc => doc.reference === complaintId);
+            if (matchingDoc) {
+                formattedScraps.push({
+                    srNo: scrap.srNo,
+                    itemName: scrap.itemName,
+                    allocation: matchingDoc.allocation,
+                    unit: scrap.unit,
+                    status: matchingDoc.status || 'PENDING',
+                    isLocked: matchingDoc.isLocked || false,
+                    date: scrap.date,
+                    returnedBy: scrap.returnedBy
+                });
+            }
+        });
+
+        res.json({
+            complaintId,
+            issues: formattedIssues,
+            purchases: formattedPurchases,
+            scraps: formattedScraps
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 // Get single complaint
 router.get('/:id', async (req, res) => {
     try {

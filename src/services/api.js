@@ -5,6 +5,7 @@ export const api = {
     // Complaints
     getComplaints: () => fetch(`${API_URL}/complaints`).then(res => res.json()),
     getComplaint: (id) => fetch(`${API_URL}/complaints/${id}`).then(res => res.json()),
+    getComplaintLinks: (id) => fetch(`${API_URL}/complaints/${encodeURIComponent(id)}/links`).then(res => res.json()),
     createComplaint: (data) => fetch(`${API_URL}/complaints`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

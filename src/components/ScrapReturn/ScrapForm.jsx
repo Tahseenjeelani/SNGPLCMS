@@ -82,14 +82,20 @@ const ScrapForm = () => {
     };
 
     const handleAddSourceDoc = () => {
-        if (!newSourceDoc.reference || !newSourceDoc.allocation) {
-            alert('Please fill all fields');
+        if (!newSourceDoc.reference || !newSourceDoc.reference.trim()) {
+            alert('Source document reference is required');
             return;
         }
 
-        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + doc.allocation, 0);
-        if (totalAllocated + Number(newSourceDoc.allocation) > formData.quantity) {
-            alert('Total allocation exceeds quantity');
+        if (!newSourceDoc.allocation || Number(newSourceDoc.allocation) <= 0) {
+            alert('Allocation must be greater than 0');
+            return;
+        }
+
+        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
+        const expectedTotal = Number(formData.quantity) || 0;
+        if (totalAllocated + Number(newSourceDoc.allocation) > expectedTotal) {
+            alert(`Total allocation (${totalAllocated + Number(newSourceDoc.allocation)}) exceeds quantity (${expectedTotal})`);
             return;
         }
 
@@ -97,6 +103,7 @@ const ScrapForm = () => {
             ...prev,
             sourceDocuments: [...prev.sourceDocuments, {
                 ...newSourceDoc,
+                reference: newSourceDoc.reference.trim(),
                 allocation: Number(newSourceDoc.allocation),
                 status: 'PENDING',
                 isLocked: false,
@@ -127,9 +134,10 @@ const ScrapForm = () => {
             return;
         }
 
-        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + doc.allocation, 0);
-        if (totalAllocated !== formData.quantity) {
-            alert(`Total allocation (${totalAllocated}) must equal quantity (${formData.quantity})`);
+        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
+        const expectedTotal = Number(formData.quantity) || 0;
+        if (totalAllocated !== expectedTotal) {
+            alert(`Total allocation (${totalAllocated}) must equal ${expectedTotal}`);
             return;
         }
 
@@ -172,6 +180,9 @@ const ScrapForm = () => {
             alert('Error saving scrap');
         }
     };
+
+    const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
+    const expectedTotal = Number(formData.quantity) || 0;
 
     return (
         <div className="page-container">
@@ -302,6 +313,17 @@ const ScrapForm = () => {
                 {/* Source Documents Section */}
                 <div className="items-section">
                     <h3>Source Documents</h3>
+                    <div className="allocation-summary" style={{ marginBottom: '12px', fontSize: '0.95rem', fontWeight: '500' }}>
+                        <span>Total Allocated: </span>
+                        <strong style={{ color: totalAllocated === expectedTotal ? '#059669' : '#dc2626' }}>
+                            {totalAllocated} / {expectedTotal}
+                        </strong>
+                        {totalAllocated !== expectedTotal && (
+                            <span style={{ color: '#dc2626', marginLeft: '8px' }}>
+                                ⚠️ Must equal {expectedTotal}
+                            </span>
+                        )}
+                    </div>
                     <div className="items-grid">
                         <select
                             value={newSourceDoc.sourceType}
@@ -327,16 +349,18 @@ const ScrapForm = () => {
                             className="form-control"
                             min="1"
                         />
-                        <button type="button" className="btn btn-primary" onClick={handleAddSourceDoc}>
+                        <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={handleAddSourceDoc}
+                            disabled={!newSourceDoc.reference || !newSourceDoc.reference.trim()}
+                        >
                             <FaPlus /> Add
                         </button>
                     </div>
 
                     {formData.sourceDocuments.length > 0 && (
                         <div className="items-list">
-                            <div className="allocation-summary">
-                                Total Allocated: {formData.sourceDocuments.reduce((sum, doc) => sum + doc.allocation, 0)} / {formData.quantity}
-                            </div>
                             <table>
                                 <thead>
                                     <tr>

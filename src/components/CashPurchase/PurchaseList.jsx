@@ -153,7 +153,7 @@ const PurchaseList = () => {
                                                 </div>
                                             ))}
                                         </td>
-                                        <td>${purchase.totalAmount}</td>
+                                        <td>PKR {purchase.totalAmount}</td>
                                         <td>
                                             {purchase.addedToStock ? (
                                                 <span className="badge badge-success">

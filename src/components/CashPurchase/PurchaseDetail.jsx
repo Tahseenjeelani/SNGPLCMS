@@ -96,7 +96,7 @@ const PurchaseDetail = () => {
                     </div>
                     <div>
                         <span className="label">Total Amount</span>
-                        <span className="value" style={{ color: '#059669', fontWeight: '700' }}>${purchase.totalAmount}</span>
+                        <span className="value" style={{ color: '#059669', fontWeight: '700' }}>PKR {purchase.totalAmount}</span>
                     </div>
                     <div>
                         <span className="label">Stock Update</span>
@@ -143,8 +143,8 @@ const PurchaseDetail = () => {
                                     <td><strong>{item.itemName}</strong></td>
                                     <td>{item.quantity}</td>
                                     <td>{item.unit}</td>
-                                    <td>${item.unitPrice}</td>
-                                    <td>${item.total}</td>
+                                    <td>PKR {item.unitPrice}</td>
+                                    <td>PKR {item.total}</td>
                                     <td>
                                         {item.isStoreItem ? (
                                             <span className="badge badge-success">Store Item</span>
@@ -189,7 +189,7 @@ const PurchaseDetail = () => {
                                                 <strong>{doc.reference}</strong>
                                             )}
                                         </td>
-                                        <td><strong>${doc.allocation}</strong></td>
+                                        <td><strong>PKR {doc.allocation}</strong></td>
                                         <td>
                                             <span className={`badge ${doc.isLocked ? 'badge-success' : 'badge-warning'}`}>
                                                 {doc.isLocked ? <><FaLock /> Locked</> : (doc.status || 'Pending')}

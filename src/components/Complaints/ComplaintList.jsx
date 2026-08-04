@@ -1,6 +1,5 @@
-// src/components/Complaints/ComplaintList.jsx
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
     FaPlus,
     FaEdit,
@@ -16,10 +15,13 @@ import { getTradeSectionLabel } from '../../data/preDefinedLists';
 import './Complaints.css';
 
 const ComplaintList = () => {
+    const [searchParams] = useSearchParams();
+    const statusParam = searchParams.get('status');
+
     const [complaints, setComplaints] = useState([]);
     const [filteredComplaints, setFilteredComplaints] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('ALL');
+    const [statusFilter, setStatusFilter] = useState(statusParam || 'ALL');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -58,7 +60,11 @@ const ComplaintList = () => {
         }
 
         if (statusFilter !== 'ALL') {
-            filtered = filtered.filter(c => c.status === statusFilter);
+            if (statusFilter === 'PENDING') {
+                filtered = filtered.filter(c => c.status !== 'COMPLETED' && c.status !== 'CLOSED');
+            } else {
+                filtered = filtered.filter(c => c.status === statusFilter);
+            }
         }
 
         setFilteredComplaints(filtered);
@@ -137,6 +143,7 @@ const ComplaintList = () => {
                         className="filter-select"
                     >
                         <option value="ALL">All Status</option>
+                        <option value="PENDING">Pending (All Active)</option>
                         <option value="NEW">New</option>
                         <option value="ASSIGNED">Assigned</option>
                         <option value="IN_PROGRESS">In Progress</option>

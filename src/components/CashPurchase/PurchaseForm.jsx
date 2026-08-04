@@ -521,8 +521,8 @@ const PurchaseForm = () => {
                                             <td>{item.itemName}</td>
                                             <td>{item.quantity}</td>
                                             <td>{item.unit}</td>
-                                            <td>${item.unitPrice}</td>
-                                            <td>${item.total}</td>
+                                            <td>PKR {item.unitPrice}</td>
+                                            <td>PKR {item.total}</td>
                                             <td>
                                                 {item.isStoreItem ? (
                                                     <span className="badge badge-success">
@@ -550,7 +550,7 @@ const PurchaseForm = () => {
                                             Total Amount:
                                         </td>
                                         <td colSpan="3" style={{ fontWeight: 'bold' }}>
-                                            ${calculateTotal()}
+                                            PKR {calculateTotal()}
                                         </td>
                                     </tr>
                                 </tfoot>
@@ -626,7 +626,7 @@ const PurchaseForm = () => {
                                         <tr key={index}>
                                             <td>{doc.sourceType}</td>
                                             <td>{doc.reference}</td>
-                                            <td>${doc.allocation}</td>
+                                            <td>PKR {doc.allocation}</td>
                                             <td>
                                                 <span className={`badge ${doc.isLocked ? 'badge-success' : 'badge-warning'}`}>
                                                     {doc.isLocked ? 'Locked' : 'Pending'}

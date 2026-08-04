@@ -244,3 +244,94 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Status Quick Action Buttons */
+.status-buttons-section {
+    margin-bottom: 24px;
+}
+
+.status-buttons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.status-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-radius: 12px;
+    background: white;
+    border: 2px solid transparent;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    text-align: left;
+}
+
+.status-nav-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.status-nav-btn.pending {
+    border-color: #D97706;
+    background: #FFFBEB;
+}
+
+.status-nav-btn.active-issues {
+    border-color: #2563EB;
+    background: #EFF6FF;
+}
+
+.status-nav-btn.low-stock {
+    border-color: #D97706;
+    background: #FEF3C7;
+}
+
+.status-nav-btn.critical-stock {
+    border-color: #DC2626;
+    background: #FEF2F2;
+}
+
+.status-nav-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.status-nav-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1F2937;
+}
+
+.status-nav-sub {
+    font-size: 0.75rem;
+    color: #6B7280;
+    margin-top: 2px;
+}
+
+.status-nav-badge {
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    color: white;
+}
+
+.status-nav-btn.pending .status-nav-badge {
+    background: #D97706;
+}
+
+.status-nav-btn.active-issues .status-nav-badge {
+    background: #2563EB;
+}
+
+.status-nav-btn.low-stock .status-nav-badge {
+    background: #D97706;
+}
+
+.status-nav-btn.critical-stock .status-nav-badge {
+    background: #DC2626;
+}

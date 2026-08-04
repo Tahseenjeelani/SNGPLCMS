@@ -1,5 +1,5 @@
-// src/components/Dashboard/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     FaClipboardList,
     FaExchangeAlt,
@@ -31,11 +31,13 @@ import {
 import './Dashboard.css';
 
 const Dashboard = () => {
+    const navigate = useNavigate();
     const [stats, setStats] = useState({
         totalComplaints: 0,
         pendingComplaints: 0,
         completedComplaints: 0,
         totalIssues: 0,
+        activeIssues: 0,
         totalPurchases: 0,
         totalScraps: 0,
         stockItems: 0,
@@ -74,6 +76,7 @@ const Dashboard = () => {
                 pendingComplaints: complaints.filter(c => c.status !== 'COMPLETED' && c.status !== 'CLOSED').length,
                 completedComplaints: complaints.filter(c => c.status === 'COMPLETED' || c.status === 'CLOSED').length,
                 totalIssues: issues.length,
+                activeIssues: issues.filter(i => i.isActive !== false).length,
                 totalPurchases: purchases.length,
                 totalScraps: scraps.length,
                 stockItems: stock.length,
@@ -179,7 +182,7 @@ const Dashboard = () => {
                     id: p.cpNo,
                     type: 'PURCHASE',
                     title: `Purchase ${p.cpNo}`,
-                    description: `$${p.totalAmount} - ${p.tradeSection}`,
+                    description: `PKR ${p.totalAmount} - ${p.tradeSection}`,
                     status: p.addedToStock ? 'Added to Stock' : 'Consumable',
                     timestamp: p.createdAt,
                     color: '#059669'
@@ -232,6 +235,55 @@ const Dashboard = () => {
                 <div className="page-actions">
                     <button className="btn btn-outline btn-sm" onClick={loadDashboardData}>
                         Refresh
+                    </button>
+                </div>
+            </div>
+
+            {/* Status Quick Navigation Buttons */}
+            <div className="status-buttons-section">
+                <div className="status-buttons-grid">
+                    <button
+                        className="status-nav-btn pending"
+                        onClick={() => navigate('/complaints?status=PENDING')}
+                    >
+                        <div className="status-nav-content">
+                            <span className="status-nav-label">Pending Complaints</span>
+                            <span className="status-nav-sub">View pending complaints</span>
+                        </div>
+                        <span className="status-nav-badge">{stats.pendingComplaints}</span>
+                    </button>
+
+                    <button
+                        className="status-nav-btn active-issues"
+                        onClick={() => navigate('/issues?status=ACTIVE')}
+                    >
+                        <div className="status-nav-content">
+                            <span className="status-nav-label">Active Issues</span>
+                            <span className="status-nav-sub">View active issues</span>
+                        </div>
+                        <span className="status-nav-badge">{stats.activeIssues}</span>
+                    </button>
+
+                    <button
+                        className="status-nav-btn low-stock"
+                        onClick={() => navigate('/stock?status=LOW')}
+                    >
+                        <div className="status-nav-content">
+                            <span className="status-nav-label">Low Stock Items</span>
+                            <span className="status-nav-sub">View low stock items</span>
+                        </div>
+                        <span className="status-nav-badge">{stats.lowStockItems}</span>
+                    </button>
+
+                    <button
+                        className="status-nav-btn critical-stock"
+                        onClick={() => navigate('/stock?status=CRITICAL')}
+                    >
+                        <div className="status-nav-content">
+                            <span className="status-nav-label">Critical Stock</span>
+                            <span className="status-nav-sub">View critical stock items</span>
+                        </div>
+                        <span className="status-nav-badge">{stats.criticalStockItems}</span>
                     </button>
                 </div>
             </div>

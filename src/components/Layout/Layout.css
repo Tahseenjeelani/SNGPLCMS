@@ -5,6 +5,10 @@
     background: #f0f2f5;
 }
 
+.layout.no-sidebar {
+    display: block;
+}
+
 .main-content {
     flex: 1;
     display: flex;
@@ -13,6 +17,10 @@
 }
 
 .main-content.sidebar-open {
+    margin-left: 0;
+}
+
+.main-content.full-width {
     margin-left: 0;
 }
 

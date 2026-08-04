@@ -94,11 +94,11 @@ const StockHistory = () => {
                         </div>
                         <div>
                             <span className="label">Unit Price</span>
-                            <span className="value">${item.unitPrice}</span>
+                            <span className="value">PKR {item.unitPrice}</span>
                         </div>
                         <div>
                             <span className="label">Total Value</span>
-                            <span className="value">${item.totalValue}</span>
+                            <span className="value">PKR {item.totalValue}</span>
                         </div>
                     </div>
                 </div>

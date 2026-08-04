@@ -260,8 +260,8 @@ const ComplaintDetail = () => {
                                         <td>{item.itemName}</td>
                                         <td>{item.quantity}</td>
                                         <td>{item.unit}</td>
-                                        <td>${item.unitPrice}</td>
-                                        <td>${item.total}</td>
+                                        <td>PKR {item.unitPrice}</td>
+                                        <td>PKR {item.total}</td>
                                     </tr>
                                 ))}
                             </tbody>

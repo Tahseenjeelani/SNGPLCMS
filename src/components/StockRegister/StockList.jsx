@@ -202,7 +202,7 @@ const StockList = () => {
                                                 {item.status}
                                             </span>
                                         </td>
-                                        <td>${item.totalValue}</td>
+                                        <td>PKR {item.totalValue}</td>
                                         <td>
                                             <div className="action-buttons">
                                                 <Link

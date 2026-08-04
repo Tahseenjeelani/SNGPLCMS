@@ -479,8 +479,8 @@ const ComplaintForm = () => {
                                                 <td>{item.itemName}</td>
                                                 <td>{item.quantity}</td>
                                                 <td>{item.unit}</td>
-                                                <td>${item.unitPrice}</td>
-                                                <td>${item.total}</td>
+                                                <td>PKR {item.unitPrice}</td>
+                                                <td>PKR {item.total}</td>
                                                 <td>
                                                     <button
                                                         type="button"
@@ -499,7 +499,7 @@ const ComplaintForm = () => {
                                                 Total Bill:
                                             </td>
                                             <td colSpan="2" style={{ fontWeight: 'bold' }}>
-                                                ${calculateTotalBill()}
+                                                PKR {calculateTotalBill()}
                                             </td>
                                         </tr>
                                     </tfoot>

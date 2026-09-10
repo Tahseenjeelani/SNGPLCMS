@@ -87,6 +87,15 @@ const ScrapForm = () => {
             return;
         }
 
+        if (newSourceDoc.sourceType === 'COMPLAINT') {
+            const data = JSON.parse(localStorage.getItem('snglData'));
+            const complaintExists = data && data.complaints && data.complaints.some(c => c.id === newSourceDoc.reference.trim());
+            if (!complaintExists) {
+                alert(`Complaint with ID '${newSourceDoc.reference.trim()}' does not exist.`);
+                return;
+            }
+        }
+
         if (!newSourceDoc.allocation || Number(newSourceDoc.allocation) <= 0) {
             alert('Allocation must be greater than 0');
             return;
@@ -171,6 +180,38 @@ const ScrapForm = () => {
 
                 data.scraps.push(newScrap);
                 data.counters.scrap = scrapCount;
+
+                // Update stock (increase)
+                const stockIndex = data.stock.findIndex(s => s.itemId === formData.itemId);
+                if (stockIndex !== -1) {
+                    const stockItem = data.stock[stockIndex];
+                    stockItem.currentStock += Number(formData.quantity);
+                    stockItem.totalValue = stockItem.currentStock * stockItem.unitPrice;
+                    stockItem.lastUpdated = now;
+                    stockItem.modifiedBy = 'Admin';
+                    stockItem.modifiedAt = now;
+
+                    // Update status
+                    if (stockItem.currentStock < stockItem.minimumStock * 0.5) {
+                        stockItem.status = 'CRITICAL';
+                    } else if (stockItem.currentStock < stockItem.minimumStock) {
+                        stockItem.status = 'LOW';
+                    } else {
+                        stockItem.status = 'GOOD';
+                    }
+
+                    // Add transaction
+                    if (!stockItem.transactions) stockItem.transactions = [];
+                    stockItem.transactions.push({
+                        date: now,
+                        type: 'SCRAP_RETURN',
+                        documentNo: srNo,
+                        quantity: Number(formData.quantity),
+                        balance: stockItem.currentStock,
+                        sourceDoc: formData.sourceDocuments[0]?.reference || '',
+                        remarks: formData.description || 'Returned scrap material'
+                    });
+                }
             }
 
             localStorage.setItem('snglData', JSON.stringify(data));

@@ -239,119 +239,55 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Status Quick Navigation Buttons */}
-            <div className="status-buttons-section">
-                <div className="status-buttons-grid">
-                    <button
-                        className="status-nav-btn pending"
-                        onClick={() => navigate('/complaints?status=PENDING')}
-                    >
-                        <div className="status-nav-content">
-                            <span className="status-nav-label">Pending Complaints</span>
-                            <span className="status-nav-sub">View pending complaints</span>
-                        </div>
-                        <span className="status-nav-badge">{stats.pendingComplaints}</span>
-                    </button>
-
-                    <button
-                        className="status-nav-btn active-issues"
-                        onClick={() => navigate('/issues?status=ACTIVE')}
-                    >
-                        <div className="status-nav-content">
-                            <span className="status-nav-label">Active Issues</span>
-                            <span className="status-nav-sub">View active issues</span>
-                        </div>
-                        <span className="status-nav-badge">{stats.activeIssues}</span>
-                    </button>
-
-                    <button
-                        className="status-nav-btn low-stock"
-                        onClick={() => navigate('/stock?status=LOW')}
-                    >
-                        <div className="status-nav-content">
-                            <span className="status-nav-label">Low Stock Items</span>
-                            <span className="status-nav-sub">View low stock items</span>
-                        </div>
-                        <span className="status-nav-badge">{stats.lowStockItems}</span>
-                    </button>
-
-                    <button
-                        className="status-nav-btn critical-stock"
-                        onClick={() => navigate('/stock?status=CRITICAL')}
-                    >
-                        <div className="status-nav-content">
-                            <span className="status-nav-label">Critical Stock</span>
-                            <span className="status-nav-sub">View critical stock items</span>
-                        </div>
-                        <span className="status-nav-badge">{stats.criticalStockItems}</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Stats Cards */}
+            {/* Main Navigation */}
             <div className="stats-grid">
-                <div className="stat-card">
+                <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/complaints')}>
                     <div className="stat-icon blue">
                         <FaClipboardList />
                     </div>
                     <div className="stat-content">
-                        <div className="stat-value">{stats.totalComplaints}</div>
-                        <div className="stat-label">Total Complaints</div>
-                        <div className="stat-sub">
-                            <span className="text-green">{stats.completedComplaints} Completed</span>
-                            <span className="text-yellow">{stats.pendingComplaints} Pending</span>
-                        </div>
+                        <div className="stat-label" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>Complaints</div>
+                        <div className="stat-sub text-gray">Manage and view all complaints</div>
                     </div>
                 </div>
 
-                <div className="stat-card">
+                <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/issues')}>
                     <div className="stat-icon green">
                         <FaExchangeAlt />
                     </div>
                     <div className="stat-content">
-                        <div className="stat-value">{stats.totalIssues}</div>
-                        <div className="stat-label">Total Issues</div>
+                        <div className="stat-label" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>Issue Register</div>
                         <div className="stat-sub text-gray">Materials issued from store</div>
                     </div>
                 </div>
 
-                <div className="stat-card">
+                <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/purchases')}>
                     <div className="stat-icon orange">
                         <FaShoppingCart />
                     </div>
                     <div className="stat-content">
-                        <div className="stat-value">{stats.totalPurchases}</div>
-                        <div className="stat-label">Cash Purchases</div>
-                        <div className="stat-sub text-gray">Market purchases</div>
+                        <div className="stat-label" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>Cash Purchase Register</div>
+                        <div className="stat-sub text-gray">Market purchases & stock addition</div>
                     </div>
                 </div>
 
-                <div className="stat-card">
-                    <div className="stat-icon red">
-                        <FaTrash />
-                    </div>
-                    <div className="stat-content">
-                        <div className="stat-value">{stats.totalScraps}</div>
-                        <div className="stat-label">Scrap Returns</div>
-                        <div className="stat-sub text-gray">Materials returned</div>
-                    </div>
-                </div>
-
-                <div className="stat-card">
+                <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/stock')}>
                     <div className="stat-icon purple">
                         <FaBoxes />
                     </div>
                     <div className="stat-content">
-                        <div className="stat-value">{stats.stockItems}</div>
-                        <div className="stat-label">Stock Items</div>
-                        <div className="stat-sub">
-                            {stats.lowStockItems > 0 && (
-                                <span className="text-yellow">{stats.lowStockItems} Low Stock</span>
-                            )}
-                            {stats.criticalStockItems > 0 && (
-                                <span className="text-red ml-2">{stats.criticalStockItems} Critical</span>
-                            )}
-                        </div>
+                        <div className="stat-label" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>Stock Register</div>
+                        <div className="stat-sub text-gray">View current inventory status</div>
+                    </div>
+                </div>
+
+                <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/scraps')}>
+                    <div className="stat-icon red">
+                        <FaTrash />
+                    </div>
+                    <div className="stat-content">
+                        <div className="stat-label" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>Scrap Register</div>
+                        <div className="stat-sub text-gray">Returned materials & scrap items</div>
                     </div>
                 </div>
             </div>

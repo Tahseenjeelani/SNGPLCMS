@@ -34,6 +34,20 @@ router.post('/', async (req, res) => {
         if (!counter) {
             counter = new Counter({ _id: 'scrap', seq: 0 });
         }
+
+        // Validate complaint source documents
+        const Complaint = require('../models/Complaint');
+        if (req.body.sourceDocuments && req.body.sourceDocuments.length > 0) {
+            for (const doc of req.body.sourceDocuments) {
+                if (doc.sourceType === 'COMPLAINT') {
+                    const complaint = await Complaint.findOne({ id: doc.reference });
+                    if (!complaint) {
+                        return res.status(400).json({ message: `Complaint with ID '${doc.reference}' does not exist.` });
+                    }
+                }
+            }
+        }
+
         counter.seq += 1;
         await counter.save();
 
@@ -49,6 +63,39 @@ router.post('/', async (req, res) => {
         });
 
         await scrap.save();
+
+        // Update stock
+        const Stock = require('../models/Stock');
+        const stockItem = await Stock.findOne({ itemId: req.body.itemId });
+        if (stockItem) {
+            stockItem.currentStock += Number(req.body.quantity);
+            stockItem.totalValue = stockItem.currentStock * stockItem.unitPrice;
+            stockItem.lastUpdated = new Date();
+            stockItem.modifiedBy = 'Admin';
+            stockItem.modifiedAt = new Date();
+
+            // Update status
+            if (stockItem.currentStock < stockItem.minimumStock * 0.5) {
+                stockItem.status = 'CRITICAL';
+            } else if (stockItem.currentStock < stockItem.minimumStock) {
+                stockItem.status = 'LOW';
+            } else {
+                stockItem.status = 'GOOD';
+            }
+
+            stockItem.transactions.push({
+                date: new Date(),
+                type: 'SCRAP_RETURN',
+                documentNo: srNo,
+                quantity: Number(req.body.quantity),
+                balance: stockItem.currentStock,
+                sourceDoc: req.body.sourceDocuments[0]?.reference || '',
+                remarks: req.body.description || 'Returned scrap material'
+            });
+
+            await stockItem.save();
+        }
+
         res.status(201).json(scrap);
     } catch (error) {
         res.status(400).json({ message: error.message });

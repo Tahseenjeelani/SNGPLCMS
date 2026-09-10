@@ -88,6 +88,15 @@ const IssueForm = () => {
             return;
         }
 
+        if (newSourceDoc.sourceType === 'COMPLAINT') {
+            const data = JSON.parse(localStorage.getItem('snglData'));
+            const complaintExists = data && data.complaints && data.complaints.some(c => c.id === newSourceDoc.reference.trim());
+            if (!complaintExists) {
+                alert(`Complaint with ID '${newSourceDoc.reference.trim()}' does not exist.`);
+                return;
+            }
+        }
+
         if (!newSourceDoc.allocation || Number(newSourceDoc.allocation) <= 0) {
             alert('Allocation must be greater than 0');
             return;

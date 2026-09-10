@@ -35,6 +35,20 @@ router.post('/', async (req, res) => {
         if (!counter) {
             counter = new Counter({ _id: 'issue', seq: 0 });
         }
+
+        // Validate complaint source documents
+        const Complaint = require('../models/Complaint');
+        if (req.body.sourceDocuments && req.body.sourceDocuments.length > 0) {
+            for (const doc of req.body.sourceDocuments) {
+                if (doc.sourceType === 'COMPLAINT') {
+                    const complaint = await Complaint.findOne({ id: doc.reference });
+                    if (!complaint) {
+                        return res.status(400).json({ message: `Complaint with ID '${doc.reference}' does not exist.` });
+                    }
+                }
+            }
+        }
+
         counter.seq += 1;
         await counter.save();
 

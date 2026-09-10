@@ -121,6 +121,15 @@ const PurchaseForm = () => {
             return;
         }
 
+        if (newSourceDoc.sourceType === 'COMPLAINT') {
+            const data = JSON.parse(localStorage.getItem('snglData'));
+            const complaintExists = data && data.complaints && data.complaints.some(c => c.id === newSourceDoc.reference.trim());
+            if (!complaintExists) {
+                alert(`Complaint with ID '${newSourceDoc.reference.trim()}' does not exist.`);
+                return;
+            }
+        }
+
         const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
         const expectedTotal = calculateTotal();
         if (totalAllocated + Number(newSourceDoc.allocation) > expectedTotal) {

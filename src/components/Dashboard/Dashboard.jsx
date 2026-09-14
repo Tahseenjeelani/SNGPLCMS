@@ -101,7 +101,7 @@ const Dashboard = () => {
             const sectionCount = {};
             complaints.forEach(c => {
                 const issuesForComplaint = issues.filter(i =>
-                    i.sourceDocuments.some(s => s.reference === c.id)
+                    i.sourceDocType === 'COMPLAINT' && i.sourceReference === c.id
                 );
                 issuesForComplaint.forEach(i => {
                     sectionCount[i.tradeSection] = (sectionCount[i.tradeSection] || 0) + 1;

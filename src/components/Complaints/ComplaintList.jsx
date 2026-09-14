@@ -1,27 +1,14 @@
+// src/components/Complaints/ComplaintList.jsx
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import {
-    FaPlus,
-    FaEdit,
-    FaEye,
-    FaCheck,
-    FaTrash,
-    FaSearch,
-    FaFilter,
-    FaLock,
-    FaUnlock
-} from 'react-icons/fa';
-import { getTradeSectionLabel } from '../../data/preDefinedLists';
+import { Link } from 'react-router-dom';
+import { FaPlus, FaEdit, FaEye, FaTrash, FaSearch, FaCheckCircle, FaClock } from 'react-icons/fa';
 import './Complaints.css';
 
 const ComplaintList = () => {
-    const [searchParams] = useSearchParams();
-    const statusParam = searchParams.get('status');
-
     const [complaints, setComplaints] = useState([]);
     const [filteredComplaints, setFilteredComplaints] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState(statusParam || 'ALL');
+    const [statusFilter, setStatusFilter] = useState('ALL');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -35,10 +22,8 @@ const ComplaintList = () => {
     const loadComplaints = () => {
         try {
             const data = JSON.parse(localStorage.getItem('snglData'));
-            if (data && data.complaints) {
-                setComplaints(data.complaints);
-                setFilteredComplaints(data.complaints);
-            }
+            const list = data?.complaints || [];
+            setComplaints(list);
         } catch (error) {
             console.error('Error loading complaints:', error);
         } finally {
@@ -49,75 +34,62 @@ const ComplaintList = () => {
     const filterComplaints = () => {
         let filtered = [...complaints];
 
-        if (searchTerm) {
+        if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase();
             filtered = filtered.filter(c =>
-                c.id.toLowerCase().includes(term) ||
-                c.location.toLowerCase().includes(term) ||
-                c.indenter.toLowerCase().includes(term) ||
-                c.attendedBy?.toLowerCase().includes(term)
+                (c.id || '').toLowerCase().includes(term) ||
+                (c.complainant || '').toLowerCase().includes(term) ||
+                (c.description || '').toLowerCase().includes(term)
             );
         }
 
         if (statusFilter !== 'ALL') {
-            if (statusFilter === 'PENDING') {
-                filtered = filtered.filter(c => c.status !== 'COMPLETED' && c.status !== 'CLOSED');
-            } else {
-                filtered = filtered.filter(c => c.status === statusFilter);
-            }
+            filtered = filtered.filter(c => c.status === statusFilter);
         }
 
         setFilteredComplaints(filtered);
     };
 
-    const getStatusBadge = (status) => {
-        const classes = {
-            'NEW': 'badge-secondary',
-            'ASSIGNED': 'badge-info',
-            'IN_PROGRESS': 'badge-warning',
-            'ON_HOLD': 'badge-secondary',
-            'COMPLETED': 'badge-success',
-            'VERIFIED': 'badge-info',
-            'CLOSED': 'badge-secondary'
-        };
-        return classes[status] || 'badge-secondary';
-    };
-
-    const getStatusDot = (status) => {
-        const colors = {
-            'NEW': 'gray',
-            'ASSIGNED': 'blue',
-            'IN_PROGRESS': 'yellow',
-            'ON_HOLD': 'gray',
-            'COMPLETED': 'green',
-            'VERIFIED': 'blue',
-            'CLOSED': 'gray'
-        };
-        return colors[status] || 'gray';
-    };
-
     const handleDelete = (id) => {
-        if (window.confirm('Are you sure you want to delete this complaint?')) {
-            try {
-                const data = JSON.parse(localStorage.getItem('snglData'));
-                data.complaints = data.complaints.filter(c => c.id !== id);
-                localStorage.setItem('snglData', JSON.stringify(data));
-                loadComplaints();
-            } catch (error) {
-                console.error('Error deleting complaint:', error);
-                alert('Error deleting complaint');
-            }
+        if (!window.confirm('Delete this complaint? This cannot be undone.')) return;
+        try {
+            const data = JSON.parse(localStorage.getItem('snglData'));
+            data.complaints = data.complaints.filter(c => c.id !== id);
+            localStorage.setItem('snglData', JSON.stringify(data));
+            loadComplaints();
+        } catch (error) {
+            console.error('Error deleting complaint:', error);
+            alert('Error deleting complaint');
         }
     };
 
-    if (loading) {
-        return <div className="loading">Loading complaints...</div>;
-    }
+    const formatDate = (d) => {
+        if (!d) return '—';
+        try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+        catch { return d; }
+    };
+
+    const openCount = complaints.filter(c => c.status === 'Open').length;
+    const completedCount = complaints.filter(c => c.status === 'Completed').length;
+
+    if (loading) return <div className="loading">Loading complaints...</div>;
 
     return (
         <div className="page-container">
             <div className="page-header">
-                <h1 className="page-title">Complaints</h1>
+                <div>
+                    <h1 className="page-title">Complaints</h1>
+                    <div style={{ display: 'flex', gap: '16px', marginTop: '6px' }}>
+                        <span style={{ fontSize: '0.85rem', color: '#f59e0b', fontWeight: '600' }}>
+                            <FaClock style={{ marginRight: '4px' }} />
+                            {openCount} Open
+                        </span>
+                        <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: '600' }}>
+                            <FaCheckCircle style={{ marginRight: '4px' }} />
+                            {completedCount} Completed
+                        </span>
+                    </div>
+                </div>
                 <div className="page-actions">
                     <Link to="/complaints/new" className="btn btn-primary">
                         <FaPlus /> New Complaint
@@ -126,12 +98,13 @@ const ComplaintList = () => {
             </div>
 
             <div className="card">
+                {/* Search & Filter Bar */}
                 <div className="search-bar">
                     <div className="search-input-wrapper">
                         <FaSearch className="search-icon" />
                         <input
                             type="text"
-                            placeholder="Search complaints by ID, location, indenter..."
+                            placeholder="Search by ID, complainant, or description..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="search-input"
@@ -143,67 +116,56 @@ const ComplaintList = () => {
                         className="filter-select"
                     >
                         <option value="ALL">All Status</option>
-                        <option value="PENDING">Pending (All Active)</option>
-                        <option value="NEW">New</option>
-                        <option value="ASSIGNED">Assigned</option>
-                        <option value="IN_PROGRESS">In Progress</option>
-                        <option value="ON_HOLD">On Hold</option>
-                        <option value="COMPLETED">Completed</option>
-                        <option value="VERIFIED">Verified</option>
-                        <option value="CLOSED">Closed</option>
+                        <option value="Open">Open</option>
+                        <option value="Completed">Completed</option>
                     </select>
                     <button className="btn btn-outline" onClick={loadComplaints}>
-                        <FaFilter /> Refresh
+                        Refresh
                     </button>
                 </div>
 
+                {/* Table */}
                 <div className="table-responsive">
                     <table>
                         <thead>
                             <tr>
                                 <th>Complaint #</th>
                                 <th>Date</th>
-                                <th>Location</th>
-                                <th>Indenter</th>
+                                <th>Complainant</th>
+                                <th>Description</th>
                                 <th>Status</th>
-                                <th>Attended By</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredComplaints.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" className="empty-state">
-                                        No complaints found
-                                    </td>
+                                    <td colSpan="6" className="empty-state">No complaints found</td>
                                 </tr>
                             ) : (
                                 filteredComplaints.map((complaint) => (
                                     <tr key={complaint.id}>
-                                        <td>
-                                            <strong>{complaint.id}</strong>
-                                            {complaint.isCompleted && (
-                                                <span className="badge badge-success ml-2">
-                                                    <FaCheck size={10} /> Done
-                                                </span>
-                                            )}
+                                        <td><strong>{complaint.id}</strong></td>
+                                        <td>{formatDate(complaint.complaintDate)}</td>
+                                        <td>{complaint.complainant || '—'}</td>
+                                        <td style={{ maxWidth: '260px' }}>
+                                            <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {complaint.description || '—'}
+                                            </span>
                                         </td>
-                                        <td>{new Date(complaint.complaintDate).toLocaleDateString()}</td>
-                                        <td>{complaint.location}</td>
-                                        <td>{complaint.indenter}</td>
                                         <td>
-                                            <span className={`badge ${getStatusBadge(complaint.status)} status-badge`}>
-                                                <span className={`status-dot ${getStatusDot(complaint.status)}`}></span>
+                                            <span className={`badge ${complaint.status === 'Open' ? 'badge-warning' : 'badge-success'}`}
+                                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                {complaint.status === 'Open' ? <FaClock size={10} /> : <FaCheckCircle size={10} />}
                                                 {complaint.status}
                                             </span>
                                         </td>
-                                        <td>{complaint.attendedBy || '-'}</td>
                                         <td>
                                             <div className="action-buttons">
                                                 <Link
                                                     to={`/complaints/view/${encodeURIComponent(complaint.id)}`}
                                                     className="btn btn-outline btn-sm"
-                                                    title="View"
+                                                    title="View dashboard"
                                                 >
                                                     <FaEye />
                                                 </Link>
@@ -214,15 +176,6 @@ const ComplaintList = () => {
                                                 >
                                                     <FaEdit />
                                                 </Link>
-                                                {!complaint.isCompleted && complaint.status !== 'COMPLETED' && (
-                                                    <Link
-                                                        to={`/complaints/complete/${encodeURIComponent(complaint.id)}`}
-                                                        className="btn btn-success btn-sm"
-                                                        title="Complete"
-                                                    >
-                                                        <FaCheck />
-                                                    </Link>
-                                                )}
                                                 <button
                                                     onClick={() => handleDelete(complaint.id)}
                                                     className="btn btn-danger btn-sm"
@@ -240,7 +193,7 @@ const ComplaintList = () => {
                 </div>
 
                 <div className="table-footer">
-                    <span>Total: {filteredComplaints.length} complaints</span>
+                    <span>Showing {filteredComplaints.length} of {complaints.length} complaints</span>
                 </div>
             </div>
         </div>

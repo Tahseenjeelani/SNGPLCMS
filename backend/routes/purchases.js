@@ -2,13 +2,17 @@
 const express = require('express');
 const router = express.Router();
 const Purchase = require('../models/Purchase');
-const Stock = require('../models/Stock');
 const Counter = require('../models/Counter');
 
-// Get all purchases
+// Get all purchases (optionally filter by sourceReference)
 router.get('/', async (req, res) => {
     try {
-        const purchases = await Purchase.find().sort({ createdAt: -1 });
+        const filter = {};
+        if (req.query.sourceRef) {
+            filter.sourceReference = req.query.sourceRef;
+            filter.sourceDocType = 'COMPLAINT';
+        }
+        const purchases = await Purchase.find(filter).sort({ createdAt: -1 });
         res.json(purchases);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -31,125 +35,78 @@ router.get('/:id', async (req, res) => {
 // Create purchase
 router.post('/', async (req, res) => {
     try {
+        const { sourceDocType, sourceReference } = req.body;
+
+        // Validate source document
+        if (!sourceDocType) {
+            return res.status(400).json({ message: 'Source document type is required.' });
+        }
+
+        // COMPLAINT source: validate complaint exists and is Open
+        if (sourceDocType === 'COMPLAINT') {
+            if (!sourceReference || !sourceReference.trim()) {
+                return res.status(400).json({ message: 'Complaint reference is required when source is COMPLAINT.' });
+            }
+            const Complaint = require('../models/Complaint');
+            const complaint = await Complaint.findOne({ id: sourceReference.trim() });
+            if (!complaint) {
+                return res.status(400).json({ message: `Complaint '${sourceReference}' does not exist.` });
+            }
+            if (complaint.status !== 'Open') {
+                return res.status(400).json({ message: `Complaint '${sourceReference}' is not Open. Only Open complaints can be referenced.` });
+            }
+        }
+
+        // Non-ROUTINE_WORK and non-COMPLAINT sources require a reference
+        if (sourceDocType !== 'ROUTINE_WORK' && sourceDocType !== 'COMPLAINT') {
+            if (!sourceReference || !sourceReference.trim()) {
+                return res.status(400).json({ message: 'A reference number is required for this source document type.' });
+            }
+        }
+
         let counter = await Counter.findById('purchase');
         if (!counter) {
             counter = new Counter({ _id: 'purchase', seq: 0 });
         }
-
-        // Validate complaint source documents
-        const Complaint = require('../models/Complaint');
-        if (req.body.sourceDocuments && req.body.sourceDocuments.length > 0) {
-            for (const doc of req.body.sourceDocuments) {
-                if (doc.sourceType === 'COMPLAINT') {
-                    const complaint = await Complaint.findOne({ id: doc.reference });
-                    if (!complaint) {
-                        return res.status(400).json({ message: `Complaint with ID '${doc.reference}' does not exist.` });
-                    }
-                }
-            }
-        }
-
         counter.seq += 1;
         await counter.save();
 
         const cpNo = `CP-${String(counter.seq).padStart(3, '0')}`;
         const now = new Date();
-        const hasStoreItems = req.body.items.some(item => item.isStoreItem);
+
+        // Calculate total amount
+        const items = req.body.items || [];
+        const totalAmount = items.reduce((sum, item) => sum + (item.total || item.quantity * item.unitPrice || 0), 0);
 
         const purchase = new Purchase({
-            ...req.body,
             cpNo,
-            addedToStock: hasStoreItems,
-            stockUpdateDate: hasStoreItems ? now : null,
+            purchaseDate: req.body.purchaseDate,
+            tradeSection: req.body.tradeSection,
+            billInvoiceNo: req.body.billInvoiceNo || '',
+            items: items.map(item => ({
+                itemName: item.itemName,
+                quantity: item.quantity,
+                unit: item.unit,
+                unitPrice: item.unitPrice,
+                total: item.total || (item.quantity * item.unitPrice),
+                description: item.description || ''
+            })),
+            totalAmount,
+            purchasedBy: req.body.purchasedBy,
+            jobNo: req.body.jobNo || '',
+            expenseHead: req.body.expenseHead || '',
+            isStoreStockItem: !!req.body.isStoreStockItem,
+            sourceDocType,
+            sourceReference: sourceDocType === 'ROUTINE_WORK' ? '' : (sourceReference || '').trim(),
+            remarks: req.body.remarks || '',
             createdBy: 'Admin',
             createdAt: now,
             modifiedBy: 'Admin',
-            modifiedAt: now
+            modifiedAt: now,
+            isActive: true
         });
 
         await purchase.save();
-
-        // Update stock for store items
-        if (hasStoreItems) {
-            for (const item of req.body.items) {
-                if (item.isStoreItem) {
-                    let stockItem = await Stock.findOne({ itemName: item.itemName });
-
-                    if (stockItem) {
-                        // Update existing stock
-                        stockItem.currentStock += item.quantity;
-                        stockItem.totalValue = stockItem.currentStock * stockItem.unitPrice;
-                        stockItem.lastUpdated = now;
-                        stockItem.modifiedBy = 'Admin';
-                        stockItem.modifiedAt = now;
-
-                        if (stockItem.currentStock < stockItem.minimumStock * 0.5) {
-                            stockItem.status = 'CRITICAL';
-                        } else if (stockItem.currentStock < stockItem.minimumStock) {
-                            stockItem.status = 'LOW';
-                        } else {
-                            stockItem.status = 'GOOD';
-                        }
-
-                        stockItem.transactions.push({
-                            date: now,
-                            type: 'CASH_PURCHASE',
-                            documentNo: cpNo,
-                            quantity: item.quantity,
-                            balance: stockItem.currentStock,
-                            sourceDoc: req.body.sourceDocuments[0]?.reference || '',
-                            remarks: `Purchased from market - ${item.description || ''}`
-                        });
-
-                        await stockItem.save();
-                    } else {
-                        // Create new stock item
-                        let stockCounter = await Counter.findById('stock');
-                        if (!stockCounter) {
-                            stockCounter = new Counter({ _id: 'stock', seq: 0 });
-                        }
-                        stockCounter.seq += 1;
-                        await stockCounter.save();
-
-                        const itemId = `MAT-${String(stockCounter.seq).padStart(3, '0')}`;
-
-                        const newStockItem = new Stock({
-                            itemId,
-                            itemName: item.itemName,
-                            tradeSection: req.body.tradeSection,
-                            category: req.body.expenseHead,
-                            unit: item.unit,
-                            currentStock: item.quantity,
-                            minimumStock: 5,
-                            maximumStock: 100,
-                            openingStock: 0,
-                            unitPrice: item.unitPrice,
-                            totalValue: item.quantity * item.unitPrice,
-                            location: 'New Item',
-                            status: 'GOOD',
-                            transactions: [{
-                                date: now,
-                                type: 'CASH_PURCHASE',
-                                documentNo: cpNo,
-                                quantity: item.quantity,
-                                balance: item.quantity,
-                                sourceDoc: req.body.sourceDocuments[0]?.reference || '',
-                                remarks: `New item purchased from market - ${item.description || ''}`
-                            }],
-                            lastUpdated: now,
-                            createdBy: 'Admin',
-                            createdAt: now,
-                            modifiedBy: 'Admin',
-                            modifiedAt: now,
-                            isActive: true
-                        });
-
-                        await newStockItem.save();
-                    }
-                }
-            }
-        }
-
         res.status(201).json(purchase);
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -164,9 +121,37 @@ router.put('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Purchase not found' });
         }
 
-        Object.assign(purchase, req.body);
-        purchase.modifiedBy = 'Admin';
-        purchase.modifiedAt = new Date();
+        // Validate if source is changing to COMPLAINT
+        if (req.body.sourceDocType === 'COMPLAINT' && req.body.sourceReference) {
+            const Complaint = require('../models/Complaint');
+            const complaint = await Complaint.findOne({ id: req.body.sourceReference.trim() });
+            if (!complaint) {
+                return res.status(400).json({ message: `Complaint '${req.body.sourceReference}' does not exist.` });
+            }
+            if (complaint.status !== 'Open') {
+                return res.status(400).json({ message: `Complaint '${req.body.sourceReference}' is not Open.` });
+            }
+        }
+
+        const items = req.body.items || purchase.items;
+        const totalAmount = items.reduce((sum, item) => sum + (item.total || item.quantity * item.unitPrice || 0), 0);
+
+        Object.assign(purchase, {
+            purchaseDate: req.body.purchaseDate || purchase.purchaseDate,
+            tradeSection: req.body.tradeSection || purchase.tradeSection,
+            billInvoiceNo: req.body.billInvoiceNo !== undefined ? req.body.billInvoiceNo : purchase.billInvoiceNo,
+            items,
+            totalAmount,
+            purchasedBy: req.body.purchasedBy || purchase.purchasedBy,
+            jobNo: req.body.jobNo !== undefined ? req.body.jobNo : purchase.jobNo,
+            expenseHead: req.body.expenseHead !== undefined ? req.body.expenseHead : purchase.expenseHead,
+            isStoreStockItem: req.body.isStoreStockItem !== undefined ? !!req.body.isStoreStockItem : purchase.isStoreStockItem,
+            sourceDocType: req.body.sourceDocType || purchase.sourceDocType,
+            sourceReference: req.body.sourceDocType === 'ROUTINE_WORK' ? '' : (req.body.sourceReference || purchase.sourceReference),
+            remarks: req.body.remarks !== undefined ? req.body.remarks : purchase.remarks,
+            modifiedBy: 'Admin',
+            modifiedAt: new Date()
+        });
 
         await purchase.save();
         res.json(purchase);

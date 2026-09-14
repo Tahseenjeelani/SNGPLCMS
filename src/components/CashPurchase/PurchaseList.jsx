@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaPlus, FaEdit, FaEye, FaTrash, FaLock, FaBoxes, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaEye, FaTrash, FaBoxes, FaSearch } from 'react-icons/fa';
 import { getTradeSectionLabel, getTradeSectionColor } from '../../data/preDefinedLists';
 
 const PurchaseList = () => {
@@ -35,14 +35,15 @@ const PurchaseList = () => {
     const filterPurchases = () => {
         let filtered = [...purchases];
 
-        if (searchTerm) {
+        if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase();
             filtered = filtered.filter(p =>
-                p.cpNo.toLowerCase().includes(term) ||
-                p.billInvoiceNo?.toLowerCase().includes(term) ||
-                p.purchasedBy.toLowerCase().includes(term) ||
-                p.items.some(item => item.itemName.toLowerCase().includes(term)) ||
-                p.sourceDocuments.some(s => s.reference.toLowerCase().includes(term))
+                (p.cpNo || '').toLowerCase().includes(term) ||
+                (p.billInvoiceNo || '').toLowerCase().includes(term) ||
+                (p.purchasedBy || '').toLowerCase().includes(term) ||
+                (p.items || []).some(item => (item.itemName || '').toLowerCase().includes(term)) ||
+                (p.sourceDocType || '').toLowerCase().includes(term) ||
+                (p.sourceReference || '').toLowerCase().includes(term)
             );
         }
 
@@ -147,30 +148,33 @@ const PurchaseList = () => {
                                             </span>
                                         </td>
                                         <td>
-                                            {purchase.items.map((item, idx) => (
+                                            {(purchase.items || []).map((item, idx) => (
                                                 <div key={idx} className="item-tag">
                                                     {item.itemName} ({item.quantity})
                                                 </div>
                                             ))}
                                         </td>
-                                        <td>PKR {purchase.totalAmount}</td>
+                                        <td>PKR {(purchase.totalAmount || 0).toLocaleString()}</td>
                                         <td>
-                                            {purchase.addedToStock ? (
+                                            {purchase.isStoreStockItem ? (
                                                 <span className="badge badge-success">
-                                                    <FaBoxes /> Added
+                                                    <FaBoxes /> Store Stock
                                                 </span>
                                             ) : (
                                                 <span className="badge badge-secondary">Consumable</span>
                                             )}
                                         </td>
                                         <td>
-                                            {purchase.sourceDocuments.map((doc, idx) => (
-                                                <div key={idx} className="source-doc-tag">
-                                                    <span className="badge badge-info">{doc.sourceType}</span>
-                                                    <span className="badge badge-secondary">{doc.reference}</span>
-                                                    {doc.isLocked && <FaLock className="lock-icon" size={10} />}
-                                                </div>
-                                            ))}
+                                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>
+                                                    {purchase.sourceDocType}
+                                                </span>
+                                                {purchase.sourceReference && (
+                                                    <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>
+                                                        {purchase.sourceReference}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td>
                                             <div className="action-buttons">

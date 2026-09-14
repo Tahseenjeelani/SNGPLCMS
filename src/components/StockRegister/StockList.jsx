@@ -1,234 +1,316 @@
 // src/components/StockRegister/StockList.jsx
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { FaPlus, FaEdit, FaTrash, FaHistory, FaSearch } from 'react-icons/fa';
-import { getTradeSectionLabel, getTradeSectionColor } from '../../data/preDefinedLists';
+import { FaSync, FaSearch, FaChevronDown, FaChevronRight, FaBoxOpen, FaShoppingCart } from 'react-icons/fa';
+import { api } from '../../services/api';
 
 const StockList = () => {
-    const [stock, setStock] = useState([]);
-    const [filteredStock, setFilteredStock] = useState([]);
+    const [stockItems, setStockItems] = useState([]);
+    const [filteredItems, setFilteredItems] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sectionFilter, setSectionFilter] = useState('ALL');
-    const [statusFilter, setStatusFilter] = useState('ALL');
     const [loading, setLoading] = useState(true);
+    const [expandedRow, setExpandedRow] = useState(null);
+    const [error, setError] = useState('');
 
     useEffect(() => {
         loadStock();
     }, []);
 
     useEffect(() => {
-        filterStock();
-    }, [stock, searchTerm, sectionFilter, statusFilter]);
+        if (!searchTerm.trim()) {
+            setFilteredItems(stockItems);
+            return;
+        }
+        const term = searchTerm.toLowerCase();
+        setFilteredItems(stockItems.filter(i => i.itemName.toLowerCase().includes(term)));
+    }, [stockItems, searchTerm]);
 
-    const loadStock = () => {
+    const loadStock = async () => {
+        setLoading(true);
+        setError('');
+
+        // Try API aggregate endpoint
         try {
-            const data = JSON.parse(localStorage.getItem('snglData'));
-            if (data && data.stock) {
-                setStock(data.stock);
-                setFilteredStock(data.stock);
+            const data = await api.getStock();
+            if (Array.isArray(data)) {
+                setStockItems(data);
+                setLoading(false);
+                return;
             }
-        } catch (error) {
-            console.error('Error loading stock:', error);
+        } catch (_) {}
+
+        // Fallback: compute locally from localStorage
+        try {
+            const data = JSON.parse(localStorage.getItem('snglData')) || {};
+            const issues = (data.issues || []).filter(i => i.isActive !== false);
+            const purchases = (data.purchases || []).filter(p => p.isActive !== false && p.isStoreStockItem === true);
+
+            const stockMap = {};
+
+            // Inflows from store-marked purchases
+            for (const purchase of purchases) {
+                for (const item of (purchase.items || [])) {
+                    const key = (item.itemName || '').trim().toLowerCase();
+                    if (!key) continue;
+                    if (!stockMap[key]) {
+                        stockMap[key] = {
+                            itemName: item.itemName.trim(),
+                            unit: item.unit || '',
+                            totalPurchased: 0,
+                            totalIssued: 0,
+                            lastUnitPrice: 0,
+                            transactions: []
+                        };
+                    }
+                    stockMap[key].totalPurchased += Number(item.quantity) || 0;
+                    stockMap[key].lastUnitPrice = item.unitPrice || stockMap[key].lastUnitPrice;
+                    stockMap[key].transactions.push({
+                        type: 'PURCHASE',
+                        docNo: purchase.cpNo,
+                        date: purchase.purchaseDate,
+                        quantity: Number(item.quantity) || 0,
+                        sourceDocType: purchase.sourceDocType,
+                        sourceReference: purchase.sourceReference
+                    });
+                }
+            }
+
+            // Outflows from issues
+            for (const issue of issues) {
+                const key = (issue.itemName || '').trim().toLowerCase();
+                if (!key) continue;
+                if (!stockMap[key]) {
+                    stockMap[key] = {
+                        itemName: issue.itemName.trim(),
+                        unit: issue.unit || '',
+                        totalPurchased: 0,
+                        totalIssued: 0,
+                        lastUnitPrice: 0,
+                        transactions: []
+                    };
+                }
+                stockMap[key].totalIssued += Number(issue.quantity) || 0;
+                if (issue.unit && !stockMap[key].unit) stockMap[key].unit = issue.unit;
+                stockMap[key].transactions.push({
+                    type: 'ISSUE',
+                    docNo: issue.irNo,
+                    date: issue.issueDate,
+                    quantity: -(Number(issue.quantity) || 0),
+                    sourceDocType: issue.sourceDocType,
+                    sourceReference: issue.sourceReference
+                });
+            }
+
+            const result = Object.values(stockMap).map(item => ({
+                itemName: item.itemName,
+                unit: item.unit,
+                totalPurchased: item.totalPurchased,
+                totalIssued: item.totalIssued,
+                currentBalance: item.totalPurchased - item.totalIssued,
+                lastUnitPrice: item.lastUnitPrice,
+                estimatedValue: (item.totalPurchased - item.totalIssued) * item.lastUnitPrice,
+                transactions: item.transactions.sort((a, b) => new Date(a.date) - new Date(b.date))
+            })).sort((a, b) => a.itemName.localeCompare(b.itemName));
+
+            setStockItems(result);
+        } catch (e) {
+            console.error('Error computing stock:', e);
+            setError('Failed to load Stock Register. Please ensure Issues and Cash Purchases are configured.');
         } finally {
             setLoading(false);
         }
     };
 
-    const filterStock = () => {
-        let filtered = [...stock];
-
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            filtered = filtered.filter(s =>
-                s.itemId.toLowerCase().includes(term) ||
-                s.itemName.toLowerCase().includes(term) ||
-                s.category?.toLowerCase().includes(term) ||
-                s.location?.toLowerCase().includes(term)
-            );
-        }
-
-        if (sectionFilter !== 'ALL') {
-            filtered = filtered.filter(s => s.tradeSection === sectionFilter);
-        }
-
-        if (statusFilter !== 'ALL') {
-            filtered = filtered.filter(s => s.status === statusFilter);
-        }
-
-        setFilteredStock(filtered);
+    const formatDate = (d) => {
+        if (!d) return '—';
+        try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+        catch { return d; }
     };
 
-    const handleDelete = (itemId) => {
-        if (window.confirm('Are you sure you want to delete this stock item?')) {
-            try {
-                const data = JSON.parse(localStorage.getItem('snglData'));
-                data.stock = data.stock.filter(s => s.itemId !== itemId);
-                localStorage.setItem('snglData', JSON.stringify(data));
-                loadStock();
-            } catch (error) {
-                console.error('Error deleting stock item:', error);
-                alert('Error deleting stock item');
-            }
-        }
+    const getBalanceColor = (balance) => {
+        if (balance < 0) return '#dc2626';
+        if (balance === 0) return '#f59e0b';
+        return '#059669';
     };
 
-    const getStatusBadge = (status) => {
-        const classes = {
-            'GOOD': 'badge-success',
-            'LOW': 'badge-warning',
-            'CRITICAL': 'badge-danger'
-        };
-        return classes[status] || 'badge-secondary';
-    };
+    const totalItems = stockItems.length;
+    const totalValue = stockItems.reduce((sum, i) => sum + (i.estimatedValue || 0), 0);
+    const lowStockItems = stockItems.filter(i => i.currentBalance <= 0);
 
     if (loading) {
-        return <div className="loading">Loading stock items...</div>;
+        return (
+            <div className="page-container">
+                <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '12px' }}>⏳</div>
+                    <p>Computing Stock Register...</p>
+                </div>
+            </div>
+        );
     }
 
     return (
         <div className="page-container">
+            {/* Header */}
             <div className="page-header">
-                <h1 className="page-title">Stock Register</h1>
+                <div>
+                    <h1 className="page-title">Stock Register</h1>
+                    <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '4px' }}>
+                        Read-only · Auto-computed from Issue Register + Store-marked Cash Purchases
+                    </p>
+                </div>
                 <div className="page-actions">
-                    <Link to="/stock/new" className="btn btn-primary">
-                        <FaPlus /> Add Item
-                    </Link>
+                    <button onClick={loadStock} className="btn btn-outline">
+                        <FaSync /> Refresh
+                    </button>
+                </div>
+            </div>
+
+            {error && (
+                <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', color: '#dc2626' }}>
+                    {error}
+                </div>
+            )}
+
+            {/* Summary Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                <SummaryCard label="Total Line Items" value={totalItems} color="#2563eb" />
+                <SummaryCard label="Estimated Stock Value" value={`PKR ${totalValue.toLocaleString()}`} color="#059669" />
+                <SummaryCard label="Zero / Negative Stock" value={lowStockItems.length} color={lowStockItems.length > 0 ? '#dc2626' : '#059669'} />
+            </div>
+
+            {/* Info Banner */}
+            <div style={{ marginBottom: '20px', padding: '12px 16px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', fontSize: '0.85rem', color: '#1d4ed8', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                <span style={{ fontSize: '1.1rem' }}>ℹ️</span>
+                <div>
+                    <strong>How stock is calculated:</strong> Inflows come from Cash Purchase entries marked as "Store Stock Items".
+                    Outflows come from all Issue Register entries. Balance = Total Purchased − Total Issued.
+                    <br />
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                        <FaShoppingCart size={11} /> Purchase entries → add to stock &nbsp;|&nbsp;
+                        <FaBoxOpen size={11} /> Issue entries → deduct from stock
+                    </span>
                 </div>
             </div>
 
             <div className="card">
-                <div className="search-bar">
+                {/* Search */}
+                <div className="search-bar" style={{ marginBottom: '16px' }}>
                     <div className="search-input-wrapper">
                         <FaSearch className="search-icon" />
                         <input
                             type="text"
-                            placeholder="Search by ID, name, category, location..."
+                            placeholder="Search items..."
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onChange={e => setSearchTerm(e.target.value)}
                             className="search-input"
                         />
                     </div>
-                    <select
-                        value={sectionFilter}
-                        onChange={(e) => setSectionFilter(e.target.value)}
-                        className="filter-select"
-                    >
-                        <option value="ALL">All Sections</option>
-                        <option value="MASONRY">Masonry</option>
-                        <option value="PLUMBING">Plumbing</option>
-                        <option value="CARPENTRY">Carpentry</option>
-                        <option value="PAINTING">Painting</option>
-                    </select>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="filter-select"
-                    >
-                        <option value="ALL">All Status</option>
-                        <option value="GOOD">Good</option>
-                        <option value="LOW">Low</option>
-                        <option value="CRITICAL">Critical</option>
-                    </select>
-                    <button className="btn btn-outline" onClick={loadStock}>
-                        Refresh
-                    </button>
                 </div>
 
-                <div className="stock-summary">
-                    <div className="summary-item">
-                        <span className="label">Total Items:</span>
-                        <span className="value">{stock.length}</span>
-                    </div>
-                    <div className="summary-item">
-                        <span className="label">Good:</span>
-                        <span className="value text-green">{stock.filter(s => s.status === 'GOOD').length}</span>
-                    </div>
-                    <div className="summary-item">
-                        <span className="label">Low:</span>
-                        <span className="value text-yellow">{stock.filter(s => s.status === 'LOW').length}</span>
-                    </div>
-                    <div className="summary-item">
-                        <span className="label">Critical:</span>
-                        <span className="value text-red">{stock.filter(s => s.status === 'CRITICAL').length}</span>
-                    </div>
-                </div>
-
+                {/* Table */}
                 <div className="table-responsive">
                     <table>
                         <thead>
                             <tr>
-                                <th>Item ID</th>
+                                <th style={{ width: '32px' }}></th>
                                 <th>Item Name</th>
-                                <th>Section</th>
-                                <th>Category</th>
-                                <th>Stock</th>
                                 <th>Unit</th>
-                                <th>Min Stock</th>
-                                <th>Status</th>
-                                <th>Value</th>
-                                <th>Actions</th>
+                                <th style={{ textAlign: 'right' }}>Total Purchased</th>
+                                <th style={{ textAlign: 'right' }}>Total Issued</th>
+                                <th style={{ textAlign: 'right' }}>Current Balance</th>
+                                <th style={{ textAlign: 'right' }}>Last Unit Price</th>
+                                <th style={{ textAlign: 'right' }}>Est. Value</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredStock.length === 0 ? (
+                            {filteredItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan="10" className="empty-state">
-                                        No stock items found
+                                    <td colSpan="8" className="empty-state">
+                                        {stockItems.length === 0
+                                            ? 'No stock data yet. Add Cash Purchases marked as "Store Stock Items" or Issue Register entries.'
+                                            : 'No items match your search.'}
                                     </td>
                                 </tr>
                             ) : (
-                                filteredStock.map((item) => (
-                                    <tr key={item.itemId}>
-                                        <td>
-                                            <strong>{item.itemId}</strong>
-                                            {!item.isActive && (
-                                                <span className="badge badge-secondary ml-2">Inactive</span>
-                                            )}
-                                        </td>
-                                        <td>{item.itemName}</td>
-                                        <td>
-                                            <span style={{ color: getTradeSectionColor(item.tradeSection) }}>
-                                                {getTradeSectionLabel(item.tradeSection)}
-                                            </span>
-                                        </td>
-                                        <td>{item.category || '-'}</td>
-                                        <td>
-                                            <strong>{item.currentStock}</strong>
-                                        </td>
-                                        <td>{item.unit}</td>
-                                        <td>{item.minimumStock}</td>
-                                        <td>
-                                            <span className={`badge ${getStatusBadge(item.status)}`}>
-                                                {item.status}
-                                            </span>
-                                        </td>
-                                        <td>PKR {item.totalValue}</td>
-                                        <td>
-                                            <div className="action-buttons">
-                                                <Link
-                                                    to={`/stock/history/${item.itemId}`}
-                                                    className="btn btn-info btn-sm"
-                                                    title="History"
-                                                >
-                                                    <FaHistory />
-                                                </Link>
-                                                <Link
-                                                    to={`/stock/edit/${item.itemId}`}
-                                                    className="btn btn-outline btn-sm"
-                                                    title="Edit"
-                                                >
-                                                    <FaEdit />
-                                                </Link>
-                                                <button
-                                                    onClick={() => handleDelete(item.itemId)}
-                                                    className="btn btn-danger btn-sm"
-                                                    title="Delete"
-                                                >
-                                                    <FaTrash />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                filteredItems.map((item, idx) => (
+                                    <React.Fragment key={item.itemName}>
+                                        <tr
+                                            onClick={() => setExpandedRow(expandedRow === idx ? null : idx)}
+                                            style={{ cursor: 'pointer', background: expandedRow === idx ? '#f0f9ff' : undefined }}
+                                        >
+                                            <td style={{ color: '#9ca3af' }}>
+                                                {expandedRow === idx ? <FaChevronDown size={12} /> : <FaChevronRight size={12} />}
+                                            </td>
+                                            <td><strong>{item.itemName}</strong></td>
+                                            <td>{item.unit}</td>
+                                            <td style={{ textAlign: 'right', color: '#059669' }}>
+                                                +{item.totalPurchased}
+                                            </td>
+                                            <td style={{ textAlign: 'right', color: '#dc2626' }}>
+                                                -{item.totalIssued}
+                                            </td>
+                                            <td style={{ textAlign: 'right' }}>
+                                                <strong style={{ color: getBalanceColor(item.currentBalance), fontSize: '1rem' }}>
+                                                    {item.currentBalance}
+                                                </strong>
+                                            </td>
+                                            <td style={{ textAlign: 'right', color: '#6b7280' }}>
+                                                {item.lastUnitPrice ? `PKR ${item.lastUnitPrice.toLocaleString()}` : '—'}
+                                            </td>
+                                            <td style={{ textAlign: 'right', fontWeight: '600' }}>
+                                                {item.estimatedValue > 0 ? `PKR ${item.estimatedValue.toLocaleString()}` : '—'}
+                                            </td>
+                                        </tr>
+
+                                        {/* Expandable transaction history */}
+                                        {expandedRow === idx && (
+                                            <tr>
+                                                <td colSpan="8" style={{ padding: 0, background: '#f8fafc' }}>
+                                                    <div style={{ padding: '12px 16px' }}>
+                                                        <p style={{ fontSize: '0.8rem', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>
+                                                            Transaction History for {item.itemName}
+                                                        </p>
+                                                        <table style={{ width: '100%', fontSize: '0.82rem' }}>
+                                                            <thead>
+                                                                <tr style={{ background: '#e2e8f0' }}>
+                                                                    <th style={{ padding: '6px 10px', textAlign: 'left' }}>Type</th>
+                                                                    <th style={{ padding: '6px 10px', textAlign: 'left' }}>Document</th>
+                                                                    <th style={{ padding: '6px 10px', textAlign: 'left' }}>Date</th>
+                                                                    <th style={{ padding: '6px 10px', textAlign: 'left' }}>Source</th>
+                                                                    <th style={{ padding: '6px 10px', textAlign: 'right' }}>Qty Change</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {(item.transactions || []).map((tx, ti) => (
+                                                                    <tr key={ti} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                                                        <td style={{ padding: '6px 10px' }}>
+                                                                            <span style={{
+                                                                                padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600',
+                                                                                background: tx.type === 'PURCHASE' ? '#dcfce7' : '#fef2f2',
+                                                                                color: tx.type === 'PURCHASE' ? '#166534' : '#991b1b'
+                                                                            }}>
+                                                                                {tx.type === 'PURCHASE' ? '▲ Purchase' : '▼ Issue'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td style={{ padding: '6px 10px', fontFamily: 'monospace' }}>{tx.docNo}</td>
+                                                                        <td style={{ padding: '6px 10px' }}>{formatDate(tx.date)}</td>
+                                                                        <td style={{ padding: '6px 10px', color: '#64748b' }}>
+                                                                            {tx.sourceDocType}{tx.sourceReference ? ` / ${tx.sourceReference}` : ''}
+                                                                        </td>
+                                                                        <td style={{
+                                                                            padding: '6px 10px', textAlign: 'right', fontWeight: '700',
+                                                                            color: tx.quantity > 0 ? '#059669' : '#dc2626'
+                                                                        }}>
+                                                                            {tx.quantity > 0 ? '+' : ''}{tx.quantity}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </React.Fragment>
                                 ))
                             )}
                         </tbody>
@@ -236,11 +318,18 @@ const StockList = () => {
                 </div>
 
                 <div className="table-footer">
-                    <span>Total: {filteredStock.length} items</span>
+                    <span>{filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} · Stock Register is read-only</span>
                 </div>
             </div>
         </div>
     );
 };
+
+const SummaryCard = ({ label, value, color }) => (
+    <div style={{ padding: '20px', background: '#fff', borderRadius: '10px', border: '1px solid #e5e7eb', borderLeft: `4px solid ${color}` }}>
+        <p style={{ margin: 0, fontSize: '0.75rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
+        <p style={{ margin: '6px 0 0', fontSize: '1.5rem', fontWeight: '700', color }}>{value}</p>
+    </div>
+);
 
 export default StockList;

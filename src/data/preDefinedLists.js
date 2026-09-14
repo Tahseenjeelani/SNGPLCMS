@@ -1,4 +1,5 @@
 // src/data/preDefinedLists.js
+
 export const TRADE_SECTIONS = [
     { value: 'MASONRY', label: 'Masonry', color: '#8B6914' },
     { value: 'PLUMBING', label: 'Plumbing', color: '#2563EB' },
@@ -10,8 +11,26 @@ export const UNITS = [
     'Bags', 'Kg', 'Pieces', 'Liters', 'Meters', 'Cft', 'Tins', 'Rolls'
 ];
 
-export const SOURCE_TYPES = [
-    'COMPLAINT', 'APPROVAL', 'EMAIL', 'HSE', 'OTHER'
+/**
+ * Source Document Types
+ * - COMPLAINT       : Internal. Reference is selected from a dropdown of Open Complaints only.
+ * - APPROVAL        : External. User manually types the reference number.
+ * - HSE_ANOMALY     : External. User manually types the reference number.
+ * - EMAIL           : External. User manually types the reference number.
+ * - ROUTINE_WORK    : No reference number required.
+ */
+export const SOURCE_DOC_TYPES = [
+    { value: 'COMPLAINT',    label: 'Complaint',    requiresRef: true,  refIsDropdown: true  },
+    { value: 'APPROVAL',     label: 'Approval',     requiresRef: true,  refIsDropdown: false },
+    { value: 'HSE_ANOMALY',  label: 'HSE Anomaly',  requiresRef: true,  refIsDropdown: false },
+    { value: 'EMAIL',        label: 'Email',        requiresRef: true,  refIsDropdown: false },
+    { value: 'ROUTINE_WORK', label: 'Routine Work', requiresRef: false, refIsDropdown: false }
+];
+
+/** Status options for Complaints — exactly two */
+export const COMPLAINT_STATUSES = [
+    { value: 'Open',      label: 'Open' },
+    { value: 'Completed', label: 'Completed' }
 ];
 
 export const EXPENSE_HEADS = [
@@ -30,14 +49,7 @@ export const EXPENSE_HEADS = [
     'Other'
 ];
 
-export const COMPLAINT_STATUSES = [
-    'NEW', 'ASSIGNED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'VERIFIED', 'CLOSED'
-];
-
-export const PROCUREMENT_TYPES = [
-    'STORE', 'MARKET', 'BOTH'
-];
-
+// Helpers
 export const getTradeSectionColor = (section) => {
     const found = TRADE_SECTIONS.find(s => s.value === section);
     return found ? found.color : '#6B7280';
@@ -46,4 +58,8 @@ export const getTradeSectionColor = (section) => {
 export const getTradeSectionLabel = (section) => {
     const found = TRADE_SECTIONS.find(s => s.value === section);
     return found ? found.label : section;
+};
+
+export const getSourceDocConfig = (value) => {
+    return SOURCE_DOC_TYPES.find(s => s.value === value) || SOURCE_DOC_TYPES[0];
 };

@@ -1,97 +1,57 @@
 // src/services/api.js
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+// Generic helper with error handling
+const request = async (url, options = {}) => {
+    const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: res.statusText }));
+        throw new Error(err.message || `Request failed: ${res.status}`);
+    }
+    return res.json();
+};
+
 export const api = {
-    // Complaints
-    getComplaints: () => fetch(`${API_URL}/complaints`).then(res => res.json()),
-    getComplaint: (id) => fetch(`${API_URL}/complaints/${id}`).then(res => res.json()),
-    getComplaintLinks: (id) => fetch(`${API_URL}/complaints/${encodeURIComponent(id)}/links`).then(res => res.json()),
-    createComplaint: (data) => fetch(`${API_URL}/complaints`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(res => res.json()),
-    updateComplaint: (id, data) => fetch(`${API_URL}/complaints/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(res => res.json()),
-    completeComplaint: (id) => fetch(`${API_URL}/complaints/${id}/complete`, {
-        method: 'POST'
-    }).then(res => res.json()),
-    deleteComplaint: (id) => fetch(`${API_URL}/complaints/${id}`, {
-        method: 'DELETE'
-    }).then(res => res.json()),
+    // ─── Complaints ───────────────────────────────────────────────
+    getComplaints: () => request(`${API_URL}/complaints`),
+    getComplaint: (id) => request(`${API_URL}/complaints/${encodeURIComponent(id)}`),
+    /** Returns only Open complaints — for dropdowns in register forms */
+    getOpenComplaints: () => request(`${API_URL}/complaints/open`),
+    /** Returns all Issues, Purchases, and Scraps linked to this complaint ID */
+    getComplaintLinks: (id) => request(`${API_URL}/complaints/${encodeURIComponent(id)}/links`),
+    createComplaint: (data) => request(`${API_URL}/complaints`, { method: 'POST', body: JSON.stringify(data) }),
+    updateComplaint: (id, data) => request(`${API_URL}/complaints/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteComplaint: (id) => request(`${API_URL}/complaints/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-    // Issues
-    getIssues: () => fetch(`${API_URL}/issues`).then(res => res.json()),
-    getIssue: (id) => fetch(`${API_URL}/issues/${id}`).then(res => res.json()),
-    createIssue: (data) => fetch(`${API_URL}/issues`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(res => res.json()),
-    updateIssue: (id, data) => fetch(`${API_URL}/issues/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(res => res.json()),
-    deleteIssue: (id) => fetch(`${API_URL}/issues/${id}`, {
-        method: 'DELETE'
-    }).then(res => res.json()),
+    // ─── Issues ───────────────────────────────────────────────────
+    getIssues: () => request(`${API_URL}/issues`),
+    getIssue: (id) => request(`${API_URL}/issues/${encodeURIComponent(id)}`),
+    createIssue: (data) => request(`${API_URL}/issues`, { method: 'POST', body: JSON.stringify(data) }),
+    updateIssue: (id, data) => request(`${API_URL}/issues/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteIssue: (id) => request(`${API_URL}/issues/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-    // Purchases
-    getPurchases: () => fetch(`${API_URL}/purchases`).then(res => res.json()),
-    getPurchase: (id) => fetch(`${API_URL}/purchases/${id}`).then(res => res.json()),
-    createPurchase: (data) => fetch(`${API_URL}/purchases`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(res => res.json()),
-    updatePurchase: (id, data) => fetch(`${API_URL}/purchases/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(res => res.json()),
-    deletePurchase: (id) => fetch(`${API_URL}/purchases/${id}`, {
-        method: 'DELETE'
-    }).then(res => res.json()),
+    // ─── Cash Purchases ───────────────────────────────────────────
+    getPurchases: () => request(`${API_URL}/purchases`),
+    getPurchase: (id) => request(`${API_URL}/purchases/${encodeURIComponent(id)}`),
+    createPurchase: (data) => request(`${API_URL}/purchases`, { method: 'POST', body: JSON.stringify(data) }),
+    updatePurchase: (id, data) => request(`${API_URL}/purchases/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deletePurchase: (id) => request(`${API_URL}/purchases/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-    // Scraps
-    getScraps: () => fetch(`${API_URL}/scraps`).then(res => res.json()),
-    getScrap: (id) => fetch(`${API_URL}/scraps/${id}`).then(res => res.json()),
-    createScrap: (data) => fetch(`${API_URL}/scraps`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(res => res.json()),
-    updateScrap: (id, data) => fetch(`${API_URL}/scraps/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(res => res.json()),
-    deleteScrap: (id) => fetch(`${API_URL}/scraps/${id}`, {
-        method: 'DELETE'
-    }).then(res => res.json()),
+    // ─── Scrap / Return ───────────────────────────────────────────
+    getScraps: () => request(`${API_URL}/scraps`),
+    getScrap: (id) => request(`${API_URL}/scraps/${encodeURIComponent(id)}`),
+    createScrap: (data) => request(`${API_URL}/scraps`, { method: 'POST', body: JSON.stringify(data) }),
+    updateScrap: (id, data) => request(`${API_URL}/scraps/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteScrap: (id) => request(`${API_URL}/scraps/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-    // Stock
-    getStock: () => fetch(`${API_URL}/stock`).then(res => res.json()),
-    getStockItem: (id) => fetch(`${API_URL}/stock/${id}`).then(res => res.json()),
-    createStock: (data) => fetch(`${API_URL}/stock`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(res => res.json()),
-    updateStock: (id, data) => fetch(`${API_URL}/stock/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    }).then(res => res.json()),
-    deleteStock: (id) => fetch(`${API_URL}/stock/${id}`, {
-        method: 'DELETE'
-    }).then(res => res.json()),
+    // ─── Stock Register (Read-Only, Computed) ─────────────────────
+    /** Returns computed stock: aggregates from Issues + Store-marked Cash Purchases */
+    getStock: () => request(`${API_URL}/stock`),
 
-    // Dashboard
-    getStats: () => fetch(`${API_URL}/dashboard/stats`).then(res => res.json()),
-    getRecentActivities: () => fetch(`${API_URL}/dashboard/recent-activities`).then(res => res.json())
+    // ─── Dashboard ────────────────────────────────────────────────
+    getStats: () => request(`${API_URL}/dashboard/stats`),
+    getRecentActivities: () => request(`${API_URL}/dashboard/recent-activities`)
 };

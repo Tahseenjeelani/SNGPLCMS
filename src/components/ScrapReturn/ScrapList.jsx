@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaPlus, FaEdit, FaEye, FaTrash, FaLock, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaEye, FaTrash, FaSearch } from 'react-icons/fa';
 import { getTradeSectionLabel, getTradeSectionColor } from '../../data/preDefinedLists';
 
 const ScrapList = () => {
@@ -35,13 +35,14 @@ const ScrapList = () => {
     const filterScraps = () => {
         let filtered = [...scraps];
 
-        if (searchTerm) {
+        if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase();
             filtered = filtered.filter(s =>
-                s.srNo.toLowerCase().includes(term) ||
-                s.itemName.toLowerCase().includes(term) ||
-                s.returnedBy.toLowerCase().includes(term) ||
-                s.sourceDocuments.some(d => d.reference.toLowerCase().includes(term))
+                (s.srNo || '').toLowerCase().includes(term) ||
+                (s.itemName || '').toLowerCase().includes(term) ||
+                (s.returnedBy || '').toLowerCase().includes(term) ||
+                (s.sourceDocType || '').toLowerCase().includes(term) ||
+                (s.sourceReference || '').toLowerCase().includes(term)
             );
         }
 
@@ -119,15 +120,14 @@ const ScrapList = () => {
                                 <th>Item</th>
                                 <th>Quantity</th>
                                 <th>Returned By</th>
-                                <th>Source Docs</th>
-                                <th>Status</th>
+                                <th>Source Document</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredScraps.length === 0 ? (
                                 <tr>
-                                    <td colSpan="9" className="empty-state">
+                                    <td colSpan="8" className="empty-state">
                                         No scrap records found
                                     </td>
                                 </tr>
@@ -150,22 +150,16 @@ const ScrapList = () => {
                                         <td>{scrap.quantity} {scrap.unit}</td>
                                         <td>{scrap.returnedBy}</td>
                                         <td>
-                                            {scrap.sourceDocuments.map((doc, idx) => (
-                                                <div key={idx} className="source-doc-tag">
-                                                    <span className="badge badge-info">{doc.sourceType}</span>
-                                                    <span className="badge badge-secondary">{doc.reference}</span>
-                                                    {doc.isLocked && <FaLock className="lock-icon" size={10} />}
-                                                </div>
-                                            ))}
-                                        </td>
-                                        <td>
-                                            {scrap.sourceDocuments.some(s => s.isLocked) ? (
-                                                <span className="badge badge-success">
-                                                    <FaLock /> Locked
+                                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>
+                                                    {scrap.sourceDocType}
                                                 </span>
-                                            ) : (
-                                                <span className="badge badge-warning">Pending</span>
-                                            )}
+                                                {scrap.sourceReference && (
+                                                    <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>
+                                                        {scrap.sourceReference}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td>
                                             <div className="action-buttons">

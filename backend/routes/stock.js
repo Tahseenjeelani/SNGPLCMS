@@ -1,133 +1,116 @@
 // backend/routes/stock.js
+// Stock Register is READ-ONLY and COMPUTED.
+// It aggregates data from:
+//   1. All Issue Register entries (items issued from store)
+//   2. Cash Purchase entries where isStoreStockItem === true
+//
+// Net Stock per item = Total Purchased (store) - Total Issued
 const express = require('express');
 const router = express.Router();
-const Stock = require('../models/Stock');
-const Counter = require('../models/Counter');
+const Issue = require('../models/Issue');
+const Purchase = require('../models/Purchase');
 
-// Get all stock items
+// GET /api/stock — computed aggregate view
 router.get('/', async (req, res) => {
     try {
-        const stock = await Stock.find().sort({ createdAt: -1 });
-        res.json(stock);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-});
+        // Fetch all issues
+        const issues = await Issue.find({ isActive: { $ne: false } });
 
-// Get single stock item
-router.get('/:id', async (req, res) => {
-    try {
-        const stock = await Stock.findOne({ itemId: req.params.id });
-        if (!stock) {
-            return res.status(404).json({ message: 'Stock item not found' });
-        }
-        res.json(stock);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-});
-
-// Create stock item
-router.post('/', async (req, res) => {
-    try {
-        // Check for duplicate name
-        const existing = await Stock.findOne({ itemName: req.body.itemName });
-        if (existing) {
-            return res.status(400).json({ message: 'Item name already exists' });
-        }
-
-        let counter = await Counter.findById('stock');
-        if (!counter) {
-            counter = new Counter({ _id: 'stock', seq: 0 });
-        }
-        counter.seq += 1;
-        await counter.save();
-
-        const itemId = `MAT-${String(counter.seq).padStart(3, '0')}`;
-        const now = new Date();
-
-        const stock = new Stock({
-            ...req.body,
-            itemId,
-            totalValue: req.body.currentStock * req.body.unitPrice,
-            status: getStockStatus(req.body.currentStock, req.body.minimumStock),
-            transactions: [{
-                date: now,
-                type: 'OPENING',
-                documentNo: 'OPEN-001',
-                quantity: req.body.currentStock,
-                balance: req.body.currentStock,
-                sourceDoc: 'Initial Stock',
-                remarks: 'Opening stock entry'
-            }],
-            lastUpdated: now,
-            createdBy: 'Admin',
-            createdAt: now,
-            modifiedBy: 'Admin',
-            modifiedAt: now
+        // Fetch only store-stock purchases
+        const purchases = await Purchase.find({
+            isStoreStockItem: true,
+            isActive: { $ne: false }
         });
 
-        await stock.save();
-        res.status(201).json(stock);
-    } catch (error) {
-        res.status(400).json({ message: error.message });
-    }
-});
+        // Build stock map keyed by itemName (normalised to lowercase for grouping)
+        const stockMap = {};
 
-// Update stock item
-router.put('/:id', async (req, res) => {
-    try {
-        const stock = await Stock.findOne({ itemId: req.params.id });
-        if (!stock) {
-            return res.status(404).json({ message: 'Stock item not found' });
+        // Add incoming stock from store purchases
+        for (const purchase of purchases) {
+            for (const item of (purchase.items || [])) {
+                const key = (item.itemName || '').trim().toLowerCase();
+                if (!key) continue;
+                if (!stockMap[key]) {
+                    stockMap[key] = {
+                        itemName: item.itemName.trim(),
+                        unit: item.unit || '',
+                        totalPurchased: 0,
+                        totalIssued: 0,
+                        lastUnitPrice: 0,
+                        transactions: []
+                    };
+                }
+                stockMap[key].totalPurchased += Number(item.quantity) || 0;
+                stockMap[key].lastUnitPrice = item.unitPrice || stockMap[key].lastUnitPrice;
+                stockMap[key].transactions.push({
+                    type: 'PURCHASE',
+                    docNo: purchase.cpNo,
+                    date: purchase.purchaseDate,
+                    quantity: Number(item.quantity) || 0,
+                    sourceDocType: purchase.sourceDocType,
+                    sourceReference: purchase.sourceReference
+                });
+            }
         }
 
-        const oldStock = stock.currentStock;
-        Object.assign(stock, req.body);
-        stock.totalValue = req.body.currentStock * req.body.unitPrice;
-        stock.status = getStockStatus(req.body.currentStock, req.body.minimumStock);
-        stock.lastUpdated = new Date();
-        stock.modifiedBy = 'Admin';
-        stock.modifiedAt = new Date();
-
-        // Add transaction if stock changed
-        if (oldStock !== req.body.currentStock) {
-            const diff = req.body.currentStock - oldStock;
-            stock.transactions.push({
-                date: new Date(),
-                type: 'OPENING',
-                documentNo: 'ADJUSTMENT',
-                quantity: diff,
-                balance: req.body.currentStock,
-                sourceDoc: 'Manual Adjustment',
-                remarks: `Stock adjusted from ${oldStock} to ${req.body.currentStock}`
+        // Subtract issued stock from issues
+        for (const issue of issues) {
+            const key = (issue.itemName || '').trim().toLowerCase();
+            if (!key) continue;
+            if (!stockMap[key]) {
+                // Item appears in issues but not in any store purchase
+                stockMap[key] = {
+                    itemName: issue.itemName.trim(),
+                    unit: issue.unit || '',
+                    totalPurchased: 0,
+                    totalIssued: 0,
+                    lastUnitPrice: 0,
+                    transactions: []
+                };
+            }
+            stockMap[key].totalIssued += Number(issue.quantity) || 0;
+            if (issue.unit && !stockMap[key].unit) {
+                stockMap[key].unit = issue.unit;
+            }
+            stockMap[key].transactions.push({
+                type: 'ISSUE',
+                docNo: issue.irNo,
+                date: issue.issueDate,
+                quantity: -(Number(issue.quantity) || 0),
+                sourceDocType: issue.sourceDocType,
+                sourceReference: issue.sourceReference
             });
         }
 
-        await stock.save();
-        res.json(stock);
-    } catch (error) {
-        res.status(400).json({ message: error.message });
-    }
-});
+        // Convert map to sorted array
+        const stockList = Object.values(stockMap).map(item => ({
+            itemName: item.itemName,
+            unit: item.unit,
+            totalPurchased: item.totalPurchased,
+            totalIssued: item.totalIssued,
+            currentBalance: item.totalPurchased - item.totalIssued,
+            lastUnitPrice: item.lastUnitPrice,
+            estimatedValue: (item.totalPurchased - item.totalIssued) * item.lastUnitPrice,
+            transactions: item.transactions.sort((a, b) => new Date(a.date) - new Date(b.date))
+        })).sort((a, b) => a.itemName.localeCompare(b.itemName));
 
-// Delete stock item
-router.delete('/:id', async (req, res) => {
-    try {
-        const stock = await Stock.findOneAndDelete({ itemId: req.params.id });
-        if (!stock) {
-            return res.status(404).json({ message: 'Stock item not found' });
-        }
-        res.json({ message: 'Stock item deleted' });
+        res.json(stockList);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-function getStockStatus(current, minimum) {
-    if (current < minimum * 0.5) return 'CRITICAL';
-    if (current < minimum) return 'LOW';
-    return 'GOOD';
-}
+// All write operations are forbidden — Stock is read-only
+router.post('/', (req, res) => {
+    res.status(405).json({ message: 'Stock Register is read-only. Items are managed through the Issue and Cash Purchase registers.' });
+});
+
+router.put('/:id', (req, res) => {
+    res.status(405).json({ message: 'Stock Register is read-only. Items are managed through the Issue and Cash Purchase registers.' });
+});
+
+router.delete('/:id', (req, res) => {
+    res.status(405).json({ message: 'Stock Register is read-only. Items are managed through the Issue and Cash Purchase registers.' });
+});
 
 module.exports = router;

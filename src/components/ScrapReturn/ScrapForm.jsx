@@ -1,8 +1,9 @@
 // src/components/ScrapReturn/ScrapForm.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { FaPlus, FaTrash, FaSave, FaTimes } from 'react-icons/fa';
-import { TRADE_SECTIONS, UNITS, SOURCE_TYPES } from '../../data/preDefinedLists';
+import { FaSave, FaTimes, FaInfoCircle } from 'react-icons/fa';
+import { TRADE_SECTIONS, UNITS, SOURCE_DOC_TYPES, getSourceDocConfig } from '../../data/preDefinedLists';
+import { api } from '../../services/api';
 
 const ScrapForm = () => {
     const navigate = useNavigate();
@@ -19,216 +20,154 @@ const ScrapForm = () => {
         description: '',
         returnedBy: '',
         receivedBy: 'Store Keeper',
-        sourceDocuments: [],
-        remarks: '',
-        isActive: true
+        sourceDocType: 'COMPLAINT',
+        sourceReference: '',
+        remarks: ''
     });
 
     const [stockItems, setStockItems] = useState([]);
-    const [newSourceDoc, setNewSourceDoc] = useState({
-        sourceType: 'COMPLAINT',
-        reference: '',
-        allocation: 1
-    });
+    const [openComplaints, setOpenComplaints] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const sourceConfig = getSourceDocConfig(formData.sourceDocType);
 
     useEffect(() => {
         loadStockItems();
-        if (isEdit) {
-            loadScrap();
-        }
+        loadOpenComplaints();
+        if (isEdit) loadScrap();
     }, [id]);
 
     const loadStockItems = () => {
         try {
             const data = JSON.parse(localStorage.getItem('snglData'));
-            if (data && data.stock) {
-                setStockItems(data.stock.filter(s => s.isActive !== false));
-            }
-        } catch (error) {
-            console.error('Error loading stock items:', error);
-        }
+            setStockItems((data?.stock || []).filter(s => s.isActive !== false));
+        } catch (e) { console.error(e); }
     };
 
-    const loadScrap = () => {
+    const loadOpenComplaints = useCallback(async () => {
+        try {
+            const complaints = await api.getOpenComplaints();
+            if (Array.isArray(complaints)) { setOpenComplaints(complaints); return; }
+        } catch (_) {}
         try {
             const data = JSON.parse(localStorage.getItem('snglData'));
-            const scrap = data.scraps.find(s => s.srNo === id);
-            if (scrap) {
-                setFormData({
-                    ...scrap,
-                    date: scrap.date || new Date().toISOString().split('T')[0]
-                });
-            }
-        } catch (error) {
-            console.error('Error loading scrap:', error);
-        }
+            setOpenComplaints((data?.complaints || []).filter(c => c.status === 'Open'));
+        } catch (e) { console.error(e); }
+    }, []);
+
+    const loadScrap = async () => {
+        try {
+            const scrap = await api.getScrap(id);
+            if (scrap && scrap.srNo) { applyScrap(scrap); return; }
+        } catch (_) {}
+        try {
+            const data = JSON.parse(localStorage.getItem('snglData'));
+            const scrap = (data?.scraps || []).find(s => s.srNo === id);
+            if (scrap) applyScrap(scrap);
+        } catch (e) { console.error(e); }
+    };
+
+    const applyScrap = (s) => {
+        setFormData({
+            date: s.date ? new Date(s.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            tradeSection: s.tradeSection || 'MASONRY',
+            itemId: s.itemId || '',
+            itemName: s.itemName || '',
+            quantity: s.quantity || 1,
+            unit: s.unit || 'Pieces',
+            description: s.description || '',
+            returnedBy: s.returnedBy || '',
+            receivedBy: s.receivedBy || 'Store Keeper',
+            sourceDocType: s.sourceDocType || 'COMPLAINT',
+            sourceReference: s.sourceReference || '',
+            remarks: s.remarks || ''
+        });
     };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+
+        if (name === 'sourceDocType') {
+            setFormData(prev => ({ ...prev, sourceDocType: value, sourceReference: '' }));
+            return;
+        }
 
         if (name === 'itemId') {
             const item = stockItems.find(s => s.itemId === value);
-            if (item) {
-                setFormData(prev => ({
-                    ...prev,
-                    itemId: value,
-                    itemName: item.itemName,
-                    unit: item.unit
-                }));
-            }
-        }
-    };
-
-    const handleAddSourceDoc = () => {
-        if (!newSourceDoc.reference || !newSourceDoc.reference.trim()) {
-            alert('Source document reference is required');
+            setFormData(prev => ({
+                ...prev,
+                itemId: value,
+                itemName: item ? item.itemName : '',
+                unit: item ? item.unit : prev.unit
+            }));
             return;
         }
 
-        if (newSourceDoc.sourceType === 'COMPLAINT') {
-            const data = JSON.parse(localStorage.getItem('snglData'));
-            const complaintExists = data && data.complaints && data.complaints.some(c => c.id === newSourceDoc.reference.trim());
-            if (!complaintExists) {
-                alert(`Complaint with ID '${newSourceDoc.reference.trim()}' does not exist.`);
-                return;
-            }
-        }
-
-        if (!newSourceDoc.allocation || Number(newSourceDoc.allocation) <= 0) {
-            alert('Allocation must be greater than 0');
-            return;
-        }
-
-        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
-        const expectedTotal = Number(formData.quantity) || 0;
-        if (totalAllocated + Number(newSourceDoc.allocation) > expectedTotal) {
-            alert(`Total allocation (${totalAllocated + Number(newSourceDoc.allocation)}) exceeds quantity (${expectedTotal})`);
-            return;
-        }
-
-        setFormData(prev => ({
-            ...prev,
-            sourceDocuments: [...prev.sourceDocuments, {
-                ...newSourceDoc,
-                reference: newSourceDoc.reference.trim(),
-                allocation: Number(newSourceDoc.allocation),
-                status: 'PENDING',
-                isLocked: false,
-                lockedAt: null,
-                lockedBy: null
-            }]
-        }));
-        setNewSourceDoc({ sourceType: 'COMPLAINT', reference: '', allocation: 1 });
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleRemoveSourceDoc = (index) => {
-        setFormData(prev => ({
-            ...prev,
-            sourceDocuments: prev.sourceDocuments.filter((_, i) => i !== index)
-        }));
+    const validate = () => {
+        if (!formData.itemName.trim() && !formData.itemId) return 'Item is required.';
+        if (!formData.quantity || Number(formData.quantity) <= 0) return 'Quantity must be greater than 0.';
+        if (!formData.returnedBy.trim()) return '"Returned By" is required.';
+        if (!formData.sourceDocType) return 'Source Document Type is required.';
+        if (formData.sourceDocType === 'COMPLAINT' && !formData.sourceReference)
+            return 'Please select an Open Complaint as the source.';
+        if (formData.sourceDocType !== 'COMPLAINT' && formData.sourceDocType !== 'ROUTINE_WORK' && !formData.sourceReference.trim())
+            return `A reference number is required for ${sourceConfig.label}.`;
+        return null;
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        setError('');
+        const validationError = validate();
+        if (validationError) { setError(validationError); return; }
 
-        if (!formData.itemId || !formData.quantity || !formData.returnedBy) {
-            alert('Please fill in all required fields');
-            return;
-        }
+        setLoading(true);
+        const payload = {
+            ...formData,
+            quantity: Number(formData.quantity),
+            sourceReference: formData.sourceDocType === 'ROUTINE_WORK' ? '' : formData.sourceReference.trim()
+        };
 
-        if (formData.sourceDocuments.length === 0) {
-            alert('Please add at least one source document');
-            return;
-        }
-
-        const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
-        const expectedTotal = Number(formData.quantity) || 0;
-        if (totalAllocated !== expectedTotal) {
-            alert(`Total allocation (${totalAllocated}) must equal ${expectedTotal}`);
-            return;
-        }
-
+        // Try API
         try {
-            const data = JSON.parse(localStorage.getItem('snglData'));
+            if (isEdit) { await api.updateScrap(id, payload); }
+            else { await api.createScrap(payload); }
+            navigate('/scraps');
+            return;
+        } catch (apiErr) { console.warn('API fallback:', apiErr); }
+
+        // localStorage fallback
+        try {
+            const data = JSON.parse(localStorage.getItem('snglData')) || { scraps: [], counters: { scrap: 0 } };
             const now = new Date().toISOString();
-
             if (isEdit) {
-                const index = data.scraps.findIndex(s => s.srNo === id);
-                if (index !== -1) {
-                    data.scraps[index] = {
-                        ...data.scraps[index],
-                        ...formData,
-                        modifiedBy: 'Admin',
-                        modifiedAt: now
-                    };
-                }
+                const idx = data.scraps.findIndex(s => s.srNo === id);
+                if (idx !== -1) data.scraps[idx] = { ...data.scraps[idx], ...payload, modifiedBy: 'Admin', modifiedAt: now };
             } else {
-                const scrapCount = data.scraps.length + 1;
-                const srNo = `SR-${String(scrapCount).padStart(3, '0')}`;
-
-                const newScrap = {
-                    srNo,
-                    ...formData,
-                    createdBy: 'Admin',
-                    createdAt: now,
-                    modifiedBy: 'Admin',
-                    modifiedAt: now,
-                    modificationReason: ''
-                };
-
-                data.scraps.push(newScrap);
-                data.counters.scrap = scrapCount;
-
-                // Update stock (increase)
-                const stockIndex = data.stock.findIndex(s => s.itemId === formData.itemId);
-                if (stockIndex !== -1) {
-                    const stockItem = data.stock[stockIndex];
-                    stockItem.currentStock += Number(formData.quantity);
-                    stockItem.totalValue = stockItem.currentStock * stockItem.unitPrice;
-                    stockItem.lastUpdated = now;
-                    stockItem.modifiedBy = 'Admin';
-                    stockItem.modifiedAt = now;
-
-                    // Update status
-                    if (stockItem.currentStock < stockItem.minimumStock * 0.5) {
-                        stockItem.status = 'CRITICAL';
-                    } else if (stockItem.currentStock < stockItem.minimumStock) {
-                        stockItem.status = 'LOW';
-                    } else {
-                        stockItem.status = 'GOOD';
-                    }
-
-                    // Add transaction
-                    if (!stockItem.transactions) stockItem.transactions = [];
-                    stockItem.transactions.push({
-                        date: now,
-                        type: 'SCRAP_RETURN',
-                        documentNo: srNo,
-                        quantity: Number(formData.quantity),
-                        balance: stockItem.currentStock,
-                        sourceDoc: formData.sourceDocuments[0]?.reference || '',
-                        remarks: formData.description || 'Returned scrap material'
-                    });
-                }
+                data.counters = data.counters || {};
+                data.counters.scrap = (data.counters.scrap || 0) + 1;
+                const srNo = `SR-${String(data.counters.scrap).padStart(3, '0')}`;
+                data.scraps = data.scraps || [];
+                data.scraps.push({ srNo, ...payload, createdBy: 'Admin', createdAt: now, modifiedBy: 'Admin', modifiedAt: now, isActive: true });
             }
-
             localStorage.setItem('snglData', JSON.stringify(data));
             navigate('/scraps');
-        } catch (error) {
-            console.error('Error saving scrap:', error);
-            alert('Error saving scrap');
+        } catch (localErr) {
+            console.error(localErr);
+            setError('Failed to save. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
-
-    const totalAllocated = formData.sourceDocuments.reduce((sum, doc) => sum + (Number(doc.allocation) || 0), 0);
-    const expectedTotal = Number(formData.quantity) || 0;
 
     return (
         <div className="page-container">
             <div className="page-header">
-                <h1 className="page-title">{isEdit ? 'Edit Scrap' : 'New Scrap Return'}</h1>
+                <h1 className="page-title">{isEdit ? 'Edit Scrap Return' : 'New Scrap Return'}</h1>
                 <div className="page-actions">
                     <button onClick={() => navigate('/scraps')} className="btn btn-outline">
                         <FaTimes /> Cancel
@@ -236,32 +175,26 @@ const ScrapForm = () => {
                 </div>
             </div>
 
+            {error && (
+                <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', color: '#dc2626' }}>
+                    {error}
+                </div>
+            )}
+
             <form onSubmit={handleSubmit} className="card">
+                {/* Basic Fields */}
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">Date *</label>
-                        <input
-                            type="date"
-                            name="date"
-                            value={formData.date}
-                            onChange={handleChange}
-                            className="form-control"
-                            required
-                        />
+                        <label className="form-label">Return Date *</label>
+                        <input type="date" name="date" value={formData.date}
+                            onChange={handleChange} className="form-control" required />
                     </div>
                     <div className="form-group">
                         <label className="form-label">Trade Section *</label>
-                        <select
-                            name="tradeSection"
-                            value={formData.tradeSection}
-                            onChange={handleChange}
-                            className="form-control"
-                            required
-                        >
-                            {TRADE_SECTIONS.map(section => (
-                                <option key={section.value} value={section.value}>
-                                    {section.label}
-                                </option>
+                        <select name="tradeSection" value={formData.tradeSection}
+                            onChange={handleChange} className="form-control" required>
+                            {TRADE_SECTIONS.map(s => (
+                                <option key={s.value} value={s.value}>{s.label}</option>
                             ))}
                         </select>
                     </div>
@@ -270,45 +203,33 @@ const ScrapForm = () => {
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">Item *</label>
-                        <select
-                            name="itemId"
-                            value={formData.itemId}
-                            onChange={handleChange}
-                            className="form-control"
-                            required
-                        >
-                            <option value="">Select Item</option>
-                            {stockItems.map(item => (
-                                <option key={item.itemId} value={item.itemId}>
-                                    {item.itemName} (Current: {item.currentStock} {item.unit})
-                                </option>
-                            ))}
-                        </select>
+                        {stockItems.length > 0 ? (
+                            <select name="itemId" value={formData.itemId}
+                                onChange={handleChange} className="form-control" required>
+                                <option value="">Select Item</option>
+                                {stockItems.map(item => (
+                                    <option key={item.itemId} value={item.itemId}>
+                                        {item.itemName}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <input type="text" name="itemName" value={formData.itemName}
+                                onChange={e => setFormData(prev => ({ ...prev, itemName: e.target.value }))}
+                                className="form-control" placeholder="Enter item name" required />
+                        )}
                     </div>
                     <div className="form-group">
                         <label className="form-label">Quantity *</label>
-                        <input
-                            type="number"
-                            name="quantity"
-                            value={formData.quantity}
-                            onChange={handleChange}
-                            className="form-control"
-                            min="1"
-                            required
-                        />
+                        <input type="number" name="quantity" value={formData.quantity}
+                            onChange={handleChange} className="form-control" min="1" required />
                     </div>
                     <div className="form-group">
                         <label className="form-label">Unit</label>
-                        <select
-                            name="unit"
-                            value={formData.unit}
-                            onChange={handleChange}
-                            className="form-control"
-                            disabled={!!formData.itemId}
-                        >
-                            {UNITS.map(unit => (
-                                <option key={unit} value={unit}>{unit}</option>
-                            ))}
+                        <select name="unit" value={formData.unit}
+                            onChange={handleChange} className="form-control"
+                            disabled={!!formData.itemId && stockItems.some(s => s.itemId === formData.itemId)}>
+                            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                         </select>
                     </div>
                 </div>
@@ -316,147 +237,93 @@ const ScrapForm = () => {
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">Returned By *</label>
-                        <input
-                            type="text"
-                            name="returnedBy"
-                            value={formData.returnedBy}
-                            onChange={handleChange}
-                            className="form-control"
-                            placeholder="Worker/Supervisor name"
-                            required
-                        />
+                        <input type="text" name="returnedBy" value={formData.returnedBy}
+                            onChange={handleChange} className="form-control"
+                            placeholder="Worker / Supervisor name" required />
                     </div>
                     <div className="form-group">
                         <label className="form-label">Received By</label>
-                        <input
-                            type="text"
-                            name="receivedBy"
-                            value={formData.receivedBy}
-                            onChange={handleChange}
-                            className="form-control"
-                            placeholder="Store Keeper name"
-                        />
+                        <input type="text" name="receivedBy" value={formData.receivedBy}
+                            onChange={handleChange} className="form-control"
+                            placeholder="Store Keeper name" />
                     </div>
                 </div>
 
                 <div className="form-group">
                     <label className="form-label">Description</label>
-                    <textarea
-                        name="description"
-                        value={formData.description}
-                        onChange={handleChange}
-                        className="form-control"
-                        rows="2"
-                        placeholder="Optional description..."
-                    />
+                    <textarea name="description" value={formData.description}
+                        onChange={handleChange} className="form-control" rows="2"
+                        placeholder="Optional description of returned item condition..." />
                 </div>
 
-                {/* Source Documents Section */}
-                <div className="items-section">
-                    <h3>Source Documents</h3>
-                    <div className="allocation-summary" style={{ marginBottom: '12px', fontSize: '0.95rem', fontWeight: '500' }}>
-                        <span>Total Allocated: </span>
-                        <strong style={{ color: totalAllocated === expectedTotal ? '#059669' : '#dc2626' }}>
-                            {totalAllocated} / {expectedTotal}
-                        </strong>
-                        {totalAllocated !== expectedTotal && (
-                            <span style={{ color: '#dc2626', marginLeft: '8px' }}>
-                                ⚠️ Must equal {expectedTotal}
-                            </span>
-                        )}
-                    </div>
-                    <div className="items-grid">
-                        <select
-                            value={newSourceDoc.sourceType}
-                            onChange={(e) => setNewSourceDoc(prev => ({ ...prev, sourceType: e.target.value }))}
-                            className="form-control"
-                        >
-                            {SOURCE_TYPES.map(type => (
-                                <option key={type} value={type}>{type}</option>
+                {/* ─── Source Document Section ─────────────────────────────── */}
+                <div className="items-section" style={{ background: '#f8fafc', borderRadius: '8px', padding: '16px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+                    <h3 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '12px', color: '#1e293b' }}>
+                        Source Document <span style={{ color: '#dc2626' }}>*</span>
+                    </h3>
+
+                    <div className="form-group">
+                        <label className="form-label">Document Type</label>
+                        <select name="sourceDocType" value={formData.sourceDocType}
+                            onChange={handleChange} className="form-control" style={{ maxWidth: '300px' }}>
+                            {SOURCE_DOC_TYPES.map(t => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
                             ))}
                         </select>
-                        <input
-                            type="text"
-                            placeholder="Reference *"
-                            value={newSourceDoc.reference}
-                            onChange={(e) => setNewSourceDoc(prev => ({ ...prev, reference: e.target.value }))}
-                            className="form-control"
-                        />
-                        <input
-                            type="number"
-                            placeholder="Allocation *"
-                            value={newSourceDoc.allocation}
-                            onChange={(e) => setNewSourceDoc(prev => ({ ...prev, allocation: Number(e.target.value) }))}
-                            className="form-control"
-                            min="1"
-                        />
-                        <button
-                            type="button"
-                            className="btn btn-primary"
-                            onClick={handleAddSourceDoc}
-                            disabled={!newSourceDoc.reference || !newSourceDoc.reference.trim()}
-                        >
-                            <FaPlus /> Add
-                        </button>
                     </div>
 
-                    {formData.sourceDocuments.length > 0 && (
-                        <div className="items-list">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Source Type</th>
-                                        <th>Reference</th>
-                                        <th>Allocation</th>
-                                        <th>Status</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {formData.sourceDocuments.map((doc, index) => (
-                                        <tr key={index}>
-                                            <td>{doc.sourceType}</td>
-                                            <td>{doc.reference}</td>
-                                            <td>{doc.allocation}</td>
-                                            <td>
-                                                <span className={`badge ${doc.isLocked ? 'badge-success' : 'badge-warning'}`}>
-                                                    {doc.isLocked ? 'Locked' : 'Pending'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                {!doc.isLocked && (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-danger btn-sm"
-                                                        onClick={() => handleRemoveSourceDoc(index)}
-                                                    >
-                                                        <FaTrash />
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                    {formData.sourceDocType === 'COMPLAINT' && (
+                        <div className="form-group">
+                            <label className="form-label">Select Open Complaint *</label>
+                            <select name="sourceReference" value={formData.sourceReference}
+                                onChange={handleChange} className="form-control" required>
+                                <option value="">— Select a Complaint —</option>
+                                {openComplaints.length === 0
+                                    ? <option value="" disabled>No Open complaints available</option>
+                                    : openComplaints.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.id} — {c.complainant} ({c.description?.slice(0, 50)}{c.description?.length > 50 ? '…' : ''})
+                                        </option>
+                                    ))
+                                }
+                            </select>
+                            {openComplaints.length === 0 && (
+                                <p style={{ marginTop: '6px', fontSize: '0.8rem', color: '#ef4444' }}>
+                                    <FaInfoCircle style={{ marginRight: '4px' }} />
+                                    No Open complaints. Create a complaint first, or choose a different source type.
+                                </p>
+                            )}
                         </div>
+                    )}
+
+                    {formData.sourceDocType !== 'COMPLAINT' && formData.sourceDocType !== 'ROUTINE_WORK' && (
+                        <div className="form-group">
+                            <label className="form-label">{sourceConfig.label} Reference Number *</label>
+                            <input type="text" name="sourceReference" value={formData.sourceReference}
+                                onChange={handleChange} className="form-control"
+                                placeholder={`Enter ${sourceConfig.label} reference number...`}
+                                required style={{ maxWidth: '400px' }} />
+                        </div>
+                    )}
+
+                    {formData.sourceDocType === 'ROUTINE_WORK' && (
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <FaInfoCircle />
+                            Routine Work does not require a reference document.
+                        </p>
                     )}
                 </div>
 
                 <div className="form-group">
                     <label className="form-label">Remarks</label>
-                    <textarea
-                        name="remarks"
-                        value={formData.remarks}
-                        onChange={handleChange}
-                        className="form-control"
-                        rows="2"
-                        placeholder="Additional notes..."
-                    />
+                    <textarea name="remarks" value={formData.remarks}
+                        onChange={handleChange} className="form-control" rows="2"
+                        placeholder="Optional notes..." />
                 </div>
 
                 <div className="form-actions">
-                    <button type="submit" className="btn btn-primary">
-                        <FaSave /> {isEdit ? 'Update' : 'Create'} Scrap Record
+                    <button type="submit" className="btn btn-primary" disabled={loading}>
+                        <FaSave /> {loading ? 'Saving...' : (isEdit ? 'Update Scrap Return' : 'Create Scrap Return')}
                     </button>
                 </div>
             </form>

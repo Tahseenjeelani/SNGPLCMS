@@ -159,49 +159,34 @@ const PurchaseDetail = () => {
                 </div>
             </div>
 
-            {/* Source Documents */}
+            {/* Source Document */}
             <div className="card">
                 <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
-                    Source Documents ({purchase.sourceDocuments ? purchase.sourceDocuments.length : 0})
+                    Source Document
                 </h3>
-
-                {purchase.sourceDocuments && purchase.sourceDocuments.length > 0 ? (
-                    <div className="table-responsive">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Source Type</th>
-                                    <th>Reference</th>
-                                    <th>Allocation</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {purchase.sourceDocuments.map((doc, idx) => (
-                                    <tr key={idx}>
-                                        <td><span className="badge badge-info">{doc.sourceType}</span></td>
-                                        <td>
-                                            {doc.sourceType === 'COMPLAINT' ? (
-                                                <Link to={`/complaints/view/${encodeURIComponent(doc.reference)}`} style={{ color: '#2563eb', fontWeight: '600', textDecoration: 'underline' }}>
-                                                    {doc.reference}
-                                                </Link>
-                                            ) : (
-                                                <strong>{doc.reference}</strong>
-                                            )}
-                                        </td>
-                                        <td><strong>PKR {doc.allocation}</strong></td>
-                                        <td>
-                                            <span className={`badge ${doc.isLocked ? 'badge-success' : 'badge-warning'}`}>
-                                                {doc.isLocked ? <><FaLock /> Locked</> : (doc.status || 'Pending')}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    <span className="badge badge-info" style={{ fontSize: '0.85rem', padding: '6px 12px' }}>
+                        {purchase.sourceDocType}
+                    </span>
+                    {purchase.sourceReference ? (
+                        purchase.sourceDocType === 'COMPLAINT' ? (
+                            <Link
+                                to={`/complaints/view/${encodeURIComponent(purchase.sourceReference)}`}
+                                style={{ color: '#2563eb', fontWeight: '600', textDecoration: 'underline', fontSize: '0.95rem' }}
+                            >
+                                {purchase.sourceReference}
+                            </Link>
+                        ) : (
+                            <strong style={{ fontSize: '0.95rem' }}>{purchase.sourceReference}</strong>
+                        )
+                    ) : (
+                        <span style={{ color: '#6b7280', fontStyle: 'italic', fontSize: '0.85rem' }}>No reference required</span>
+                    )}
+                </div>
+                {purchase.isStoreStockItem && (
+                    <div style={{ marginTop: '10px', padding: '8px 12px', background: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0', display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#166534', fontWeight: '600', fontSize: '0.85rem' }}>
+                        ✓ Marked as Store Stock Item — appears in Stock Register
                     </div>
-                ) : (
-                    <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No source documents attached.</p>
                 )}
             </div>
         </div>

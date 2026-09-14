@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaPlus, FaEdit, FaEye, FaTrash, FaLock, FaUnlock, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaEye, FaTrash, FaSearch } from 'react-icons/fa';
 import { getTradeSectionLabel, getTradeSectionColor } from '../../data/preDefinedLists';
 
 const IssueList = () => {
@@ -35,13 +35,14 @@ const IssueList = () => {
     const filterIssues = () => {
         let filtered = [...issues];
 
-        if (searchTerm) {
+        if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase();
             filtered = filtered.filter(i =>
-                i.irNo.toLowerCase().includes(term) ||
-                i.itemName.toLowerCase().includes(term) ||
-                i.issuedTo.toLowerCase().includes(term) ||
-                i.sourceDocuments.some(s => s.reference.toLowerCase().includes(term))
+                (i.irNo || '').toLowerCase().includes(term) ||
+                (i.itemName || '').toLowerCase().includes(term) ||
+                (i.issuedTo || '').toLowerCase().includes(term) ||
+                (i.sourceDocType || '').toLowerCase().includes(term) ||
+                (i.sourceReference || '').toLowerCase().includes(term)
             );
         }
 
@@ -83,12 +84,10 @@ const IssueList = () => {
         }
     };
 
-    const getSourceDocStatus = (sourceDocs) => {
-        const hasLocked = sourceDocs.some(s => s.isLocked);
-        const allCompleted = sourceDocs.every(s => s.status === 'COMPLETED');
-        if (hasLocked) return 'locked';
-        if (allCompleted) return 'completed';
-        return 'pending';
+    const formatDate = (d) => {
+        if (!d) return '—';
+        try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+        catch { return d; }
     };
 
     if (loading) {
@@ -144,102 +143,62 @@ const IssueList = () => {
                                 <th>Item</th>
                                 <th>Quantity</th>
                                 <th>Issued To</th>
-                                <th>Source Docs</th>
-                                <th>Status</th>
+                                <th>Source Document</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredIssues.length === 0 ? (
                                 <tr>
-                                    <td colSpan="9" className="empty-state">
-                                        No issues found
-                                    </td>
+                                    <td colSpan="8" className="empty-state">No issues found</td>
                                 </tr>
                             ) : (
-                                filteredIssues.map((issue) => {
-                                    const status = getSourceDocStatus(issue.sourceDocuments);
-                                    return (
-                                        <tr key={issue.irNo}>
-                                            <td>
-                                                <strong>{issue.irNo}</strong>
-                                                {!issue.isActive && (
-                                                    <span className="badge badge-secondary ml-2">Inactive</span>
-                                                )}
-                                            </td>
-                                            <td>{new Date(issue.issueDate).toLocaleDateString()}</td>
-                                            <td>
-                                                <span style={{ color: getTradeSectionColor(issue.tradeSection) }}>
-                                                    {getTradeSectionLabel(issue.tradeSection)}
+                                filteredIssues.map((issue) => (
+                                    <tr key={issue.irNo}>
+                                        <td><strong>{issue.irNo}</strong></td>
+                                        <td>{formatDate(issue.issueDate)}</td>
+                                        <td>
+                                            <span style={{ color: getTradeSectionColor(issue.tradeSection) }}>
+                                                {getTradeSectionLabel(issue.tradeSection)}
+                                            </span>
+                                        </td>
+                                        <td>{issue.itemName}</td>
+                                        <td>{issue.quantity} {issue.unit}</td>
+                                        <td>{issue.issuedTo}</td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>
+                                                    {issue.sourceDocType}
                                                 </span>
-                                            </td>
-                                            <td>{issue.itemName}</td>
-                                            <td>{issue.quantity} {issue.unit}</td>
-                                            <td>{issue.issuedTo}</td>
-                                            <td>
-                                                {issue.sourceDocuments.map((doc, idx) => (
-                                                    <div key={idx} className="source-doc-tag">
-                                                        <span className="badge badge-info">{doc.sourceType}</span>
-                                                        <span className="badge badge-secondary">{doc.reference}</span>
-                                                        {doc.isLocked && <FaLock className="lock-icon" size={10} />}
-                                                    </div>
-                                                ))}
-                                            </td>
-                                            <td>
-                                                {status === 'locked' && (
-                                                    <span className="badge badge-success">
-                                                        <FaLock /> Locked
+                                                {issue.sourceReference && (
+                                                    <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>
+                                                        {issue.sourceReference}
                                                     </span>
                                                 )}
-                                                {status === 'completed' && (
-                                                    <span className="badge badge-success">Completed</span>
-                                                )}
-                                                {status === 'pending' && (
-                                                    <span className="badge badge-warning">Pending</span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                <div className="action-buttons">
-                                                    <Link
-                                                        to={`/issues/view/${issue.irNo}`}
-                                                        className="btn btn-outline btn-sm"
-                                                        title="View"
-                                                    >
-                                                        <FaEye />
-                                                    </Link>
-                                                    <Link
-                                                        to={`/issues/edit/${issue.irNo}`}
-                                                        className="btn btn-outline btn-sm"
-                                                        title="Edit"
-                                                    >
-                                                        <FaEdit />
-                                                    </Link>
-                                                    <button
-                                                        onClick={() => handleToggleActive(issue.irNo)}
-                                                        className={`btn ${issue.isActive ? 'btn-warning' : 'btn-success'} btn-sm`}
-                                                        title={issue.isActive ? 'Deactivate' : 'Activate'}
-                                                    >
-                                                        {issue.isActive ? 'Deactivate' : 'Activate'}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(issue.irNo)}
-                                                        className="btn btn-danger btn-sm"
-                                                        title="Delete"
-                                                    >
-                                                        <FaTrash />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="action-buttons">
+                                                <Link to={`/issues/view/${issue.irNo}`} className="btn btn-outline btn-sm" title="View">
+                                                    <FaEye />
+                                                </Link>
+                                                <Link to={`/issues/edit/${issue.irNo}`} className="btn btn-outline btn-sm" title="Edit">
+                                                    <FaEdit />
+                                                </Link>
+                                                <button onClick={() => handleDelete(issue.irNo)} className="btn btn-danger btn-sm" title="Delete">
+                                                    <FaTrash />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
                             )}
                         </tbody>
                     </table>
                 </div>
 
                 <div className="table-footer">
-                    <span>Total: {filteredIssues.length} issues</span>
+                    <span>Showing {filteredIssues.length} of {issues.length} issues</span>
                 </div>
             </div>
         </div>

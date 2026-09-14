@@ -115,50 +115,30 @@ const IssueDetail = () => {
                 )}
             </div>
 
-            {/* Source Documents */}
+            {/* Source Document */}
             <div className="card">
                 <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
-                    Source Documents ({issue.sourceDocuments ? issue.sourceDocuments.length : 0})
+                    Source Document
                 </h3>
-
-                {issue.sourceDocuments && issue.sourceDocuments.length > 0 ? (
-                    <div className="table-responsive">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Source Type</th>
-                                    <th>Reference</th>
-                                    <th>Allocation</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {issue.sourceDocuments.map((doc, idx) => (
-                                    <tr key={idx}>
-                                        <td><span className="badge badge-info">{doc.sourceType}</span></td>
-                                        <td>
-                                            {doc.sourceType === 'COMPLAINT' ? (
-                                                <Link to={`/complaints/view/${encodeURIComponent(doc.reference)}`} style={{ color: '#2563eb', fontWeight: '600', textDecoration: 'underline' }}>
-                                                    {doc.reference}
-                                                </Link>
-                                            ) : (
-                                                <strong>{doc.reference}</strong>
-                                            )}
-                                        </td>
-                                        <td><strong>{doc.allocation}</strong> {issue.unit}</td>
-                                        <td>
-                                            <span className={`badge ${doc.isLocked ? 'badge-success' : 'badge-warning'}`}>
-                                                {doc.isLocked ? <><FaLock /> Locked</> : (doc.status || 'Pending')}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : (
-                    <p style={{ color: '#6b7280', fontStyle: 'italic' }}>No source documents attached.</p>
-                )}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span className="badge badge-info" style={{ fontSize: '0.85rem', padding: '6px 12px' }}>
+                        {issue.sourceDocType}
+                    </span>
+                    {issue.sourceReference ? (
+                        issue.sourceDocType === 'COMPLAINT' ? (
+                            <Link
+                                to={`/complaints/view/${encodeURIComponent(issue.sourceReference)}`}
+                                style={{ color: '#2563eb', fontWeight: '600', textDecoration: 'underline', fontSize: '0.95rem' }}
+                            >
+                                {issue.sourceReference}
+                            </Link>
+                        ) : (
+                            <strong style={{ fontSize: '0.95rem' }}>{issue.sourceReference}</strong>
+                        )
+                    ) : (
+                        <span style={{ color: '#6b7280', fontStyle: 'italic', fontSize: '0.85rem' }}>No reference required</span>
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -7,87 +7,87 @@ const Issue = require('../models/Issue');
 const Purchase = require('../models/Purchase');
 const Scrap = require('../models/Scrap');
 
-// Get all complaints
+// Get all complaints (optionally filter by status)
 router.get('/', async (req, res) => {
     try {
-        const complaints = await Complaint.find().sort({ createdAt: -1 });
+        const filter = {};
+        if (req.query.status) {
+            filter.status = req.query.status;
+        }
+        const complaints = await Complaint.find(filter).sort({ createdAt: -1 });
         res.json(complaints);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// Get linked entries for a complaint (Issues, Purchases, Scraps)
+// Get only Open complaints (for dropdowns in register forms)
+router.get('/open', async (req, res) => {
+    try {
+        const complaints = await Complaint.find({ status: 'Open' })
+            .select('id complaintDate complainant description')
+            .sort({ createdAt: -1 });
+        res.json(complaints);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Get linked register entries for a complaint
 router.get('/:id/links', async (req, res) => {
     try {
         const complaintId = decodeURIComponent(req.params.id);
 
-        const issues = await Issue.find({ 'sourceDocuments.reference': complaintId });
-        const purchases = await Purchase.find({ 'sourceDocuments.reference': complaintId });
-        const scraps = await Scrap.find({ 'sourceDocuments.reference': complaintId });
-
-        const formattedIssues = [];
-        issues.forEach(issue => {
-            const matchingDoc = issue.sourceDocuments.find(doc => doc.reference === complaintId);
-            if (matchingDoc) {
-                formattedIssues.push({
-                    irNo: issue.irNo,
-                    itemName: issue.itemName,
-                    allocation: matchingDoc.allocation,
-                    unit: issue.unit,
-                    status: matchingDoc.status || 'PENDING',
-                    isLocked: matchingDoc.isLocked || false,
-                    issueDate: issue.issueDate,
-                    issuedTo: issue.issuedTo
-                });
-            }
+        const issues = await Issue.find({
+            sourceDocType: 'COMPLAINT',
+            sourceReference: complaintId
         });
 
-        const formattedPurchases = [];
-        purchases.forEach(purchase => {
-            const matchingDoc = purchase.sourceDocuments.find(doc => doc.reference === complaintId);
-            if (matchingDoc) {
-                formattedPurchases.push({
-                    cpNo: purchase.cpNo,
-                    items: purchase.items ? purchase.items.map(item => item.itemName || item) : [],
-                    allocation: matchingDoc.allocation,
-                    status: matchingDoc.status || 'PENDING',
-                    isLocked: matchingDoc.isLocked || false,
-                    purchaseDate: purchase.purchaseDate,
-                    purchasedBy: purchase.purchasedBy
-                });
-            }
+        const purchases = await Purchase.find({
+            sourceDocType: 'COMPLAINT',
+            sourceReference: complaintId
         });
 
-        const formattedScraps = [];
-        scraps.forEach(scrap => {
-            const matchingDoc = scrap.sourceDocuments.find(doc => doc.reference === complaintId);
-            if (matchingDoc) {
-                formattedScraps.push({
-                    srNo: scrap.srNo,
-                    itemName: scrap.itemName,
-                    allocation: matchingDoc.allocation,
-                    unit: scrap.unit,
-                    status: matchingDoc.status || 'PENDING',
-                    isLocked: matchingDoc.isLocked || false,
-                    date: scrap.date,
-                    returnedBy: scrap.returnedBy
-                });
-            }
+        const scraps = await Scrap.find({
+            sourceDocType: 'COMPLAINT',
+            sourceReference: complaintId
         });
 
         res.json({
             complaintId,
-            issues: formattedIssues,
-            purchases: formattedPurchases,
-            scraps: formattedScraps
+            issues: issues.map(issue => ({
+                irNo: issue.irNo,
+                itemName: issue.itemName,
+                quantity: issue.quantity,
+                unit: issue.unit,
+                issuedTo: issue.issuedTo,
+                issueDate: issue.issueDate,
+                tradeSection: issue.tradeSection
+            })),
+            purchases: purchases.map(purchase => ({
+                cpNo: purchase.cpNo,
+                items: (purchase.items || []).map(i => i.itemName),
+                totalAmount: purchase.totalAmount,
+                purchasedBy: purchase.purchasedBy,
+                purchaseDate: purchase.purchaseDate,
+                isStoreStockItem: purchase.isStoreStockItem
+            })),
+            scraps: scraps.map(scrap => ({
+                srNo: scrap.srNo,
+                itemName: scrap.itemName,
+                quantity: scrap.quantity,
+                unit: scrap.unit,
+                returnedBy: scrap.returnedBy,
+                date: scrap.date,
+                tradeSection: scrap.tradeSection
+            }))
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
 
-// Get single complaint
+// Get single complaint by its business ID
 router.get('/:id', async (req, res) => {
     try {
         const complaint = await Complaint.findOne({ id: req.params.id });
@@ -107,7 +107,6 @@ router.post('/', async (req, res) => {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const year = now.getFullYear();
 
-        // Get counter
         let counter = await Counter.findById('complaint');
         if (!counter) {
             counter = new Counter({ _id: 'complaint', seq: 0 });
@@ -118,9 +117,12 @@ router.post('/', async (req, res) => {
         const complaintId = `${String(counter.seq).padStart(2, '0')}/${month}/${year}`;
 
         const complaint = new Complaint({
-            ...req.body,
             id: complaintId,
-            sourceReference: complaintId,
+            complaintDate: req.body.complaintDate,
+            description: req.body.description,
+            complainant: req.body.complainant,
+            status: 'Open',
+            remarks: req.body.remarks || '',
             createdBy: 'Admin',
             createdAt: now,
             modifiedBy: 'Admin',
@@ -142,75 +144,22 @@ router.put('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Complaint not found' });
         }
 
-        Object.assign(complaint, req.body);
+        // Only allow valid status values
+        const allowedStatuses = ['Open', 'Completed'];
+        if (req.body.status && !allowedStatuses.includes(req.body.status)) {
+            return res.status(400).json({ message: `Invalid status. Allowed: ${allowedStatuses.join(', ')}` });
+        }
+
+        complaint.complaintDate = req.body.complaintDate || complaint.complaintDate;
+        complaint.description = req.body.description || complaint.description;
+        complaint.complainant = req.body.complainant || complaint.complainant;
+        complaint.status = req.body.status || complaint.status;
+        complaint.remarks = req.body.remarks !== undefined ? req.body.remarks : complaint.remarks;
         complaint.modifiedBy = 'Admin';
         complaint.modifiedAt = new Date();
 
         await complaint.save();
         res.json(complaint);
-    } catch (error) {
-        res.status(400).json({ message: error.message });
-    }
-});
-
-// Complete complaint
-router.post('/:id/complete', async (req, res) => {
-    try {
-        const complaint = await Complaint.findOne({ id: req.params.id });
-        if (!complaint) {
-            return res.status(404).json({ message: 'Complaint not found' });
-        }
-
-        const now = new Date();
-
-        // Update complaint
-        complaint.status = 'COMPLETED';
-        complaint.isCompleted = true;
-        complaint.completedDate = now;
-        complaint.modifiedBy = 'Admin';
-        complaint.modifiedAt = now;
-        await complaint.save();
-
-        // Lock linked issues
-        await Issue.updateMany(
-            { 'sourceDocuments.reference': req.params.id, 'sourceDocuments.status': 'PENDING' },
-            {
-                $set: {
-                    'sourceDocuments.$.status': 'COMPLETED',
-                    'sourceDocuments.$.isLocked': true,
-                    'sourceDocuments.$.lockedAt': now,
-                    'sourceDocuments.$.lockedBy': 'Admin'
-                }
-            }
-        );
-
-        // Lock linked purchases
-        await Purchase.updateMany(
-            { 'sourceDocuments.reference': req.params.id, 'sourceDocuments.status': 'PENDING' },
-            {
-                $set: {
-                    'sourceDocuments.$.status': 'COMPLETED',
-                    'sourceDocuments.$.isLocked': true,
-                    'sourceDocuments.$.lockedAt': now,
-                    'sourceDocuments.$.lockedBy': 'Admin'
-                }
-            }
-        );
-
-        // Lock linked scraps
-        await Scrap.updateMany(
-            { 'sourceDocuments.reference': req.params.id, 'sourceDocuments.status': 'PENDING' },
-            {
-                $set: {
-                    'sourceDocuments.$.status': 'COMPLETED',
-                    'sourceDocuments.$.isLocked': true,
-                    'sourceDocuments.$.lockedAt': now,
-                    'sourceDocuments.$.lockedBy': 'Admin'
-                }
-            }
-        );
-
-        res.json({ message: 'Complaint completed successfully', complaint });
     } catch (error) {
         res.status(400).json({ message: error.message });
     }

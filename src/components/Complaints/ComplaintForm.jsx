@@ -1,7 +1,8 @@
+// src/components/Complaints/ComplaintForm.jsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import { FaPlus, FaTrash, FaSave, FaTimes, FaEye } from 'react-icons/fa';
-import { UNITS, PROCUREMENT_TYPES } from '../../data/preDefinedLists';
+import { useNavigate, useParams } from 'react-router-dom';
+import { FaSave, FaTimes } from 'react-icons/fa';
+import { COMPLAINT_STATUSES } from '../../data/preDefinedLists';
 import { api } from '../../services/api';
 
 const ComplaintForm = () => {
@@ -11,132 +12,56 @@ const ComplaintForm = () => {
 
     const [formData, setFormData] = useState({
         complaintDate: new Date().toISOString().split('T')[0],
-        location: '',
-        indenter: '',
-        procurementType: 'STORE',
-        storeItems: [],
-        marketItems: [],
-        attendedBy: '',
-        status: 'NEW',
+        description: '',
+        complainant: '',
+        status: 'Open',
         remarks: ''
     });
 
-    const [stockItems, setStockItems] = useState([]);
-    const [newStoreItem, setNewStoreItem] = useState({ itemId: '', quantity: 1, unit: 'Pieces' });
-    const [newMarketItem, setNewMarketItem] = useState({ itemName: '', quantity: 1, unit: 'Pieces', unitPrice: 0 });
-    const [linkedEntries, setLinkedEntries] = useState(null);
-    const [loadingLinks, setLoadingLinks] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
     useEffect(() => {
-        loadStockItems();
         if (isEdit) {
             loadComplaint();
-            loadLinkedEntries(id);
         }
     }, [id]);
 
-    const loadLinkedEntries = async (complaintId) => {
-        setLoadingLinks(true);
+    const loadComplaint = async () => {
+        // Try API first
         try {
-            const data = await api.getComplaintLinks(complaintId);
-            if (data && (data.issues || data.purchases || data.scraps)) {
-                setLinkedEntries(data);
-                setLoadingLinks(false);
+            const complaint = await api.getComplaint(id);
+            if (complaint && complaint.id) {
+                setFormData({
+                    complaintDate: complaint.complaintDate
+                        ? new Date(complaint.complaintDate).toISOString().split('T')[0]
+                        : new Date().toISOString().split('T')[0],
+                    description: complaint.description || '',
+                    complainant: complaint.complainant || '',
+                    status: complaint.status || 'Open',
+                    remarks: complaint.remarks || ''
+                });
                 return;
             }
-        } catch (error) {
-            console.warn('API getComplaintLinks failed, using localStorage fallback:', error);
-        }
+        } catch (_) {}
 
         // Fallback to localStorage
         try {
-            const localData = JSON.parse(localStorage.getItem('snglData')) || {};
-            const issues = (localData.issues || []).reduce((acc, issue) => {
-                const doc = (issue.sourceDocuments || []).find(d => d.reference === complaintId);
-                if (doc) {
-                    acc.push({
-                        irNo: issue.irNo,
-                        itemName: issue.itemName,
-                        allocation: doc.allocation,
-                        unit: issue.unit,
-                        status: doc.status || 'PENDING',
-                        isLocked: doc.isLocked || false,
-                        issueDate: issue.issueDate,
-                        issuedTo: issue.issuedTo
-                    });
-                }
-                return acc;
-            }, []);
-
-            const purchases = (localData.purchases || []).reduce((acc, purchase) => {
-                const doc = (purchase.sourceDocuments || []).find(d => d.reference === complaintId);
-                if (doc) {
-                    acc.push({
-                        cpNo: purchase.cpNo,
-                        items: (purchase.items || []).map(i => i.itemName || i),
-                        allocation: doc.allocation,
-                        status: doc.status || 'PENDING',
-                        isLocked: doc.isLocked || false,
-                        purchaseDate: purchase.purchaseDate,
-                        purchasedBy: purchase.purchasedBy
-                    });
-                }
-                return acc;
-            }, []);
-
-            const scraps = (localData.scraps || []).reduce((acc, scrap) => {
-                const doc = (scrap.sourceDocuments || []).find(d => d.reference === complaintId);
-                if (doc) {
-                    acc.push({
-                        srNo: scrap.srNo,
-                        itemName: scrap.itemName,
-                        allocation: doc.allocation,
-                        unit: scrap.unit,
-                        status: doc.status || 'PENDING',
-                        isLocked: doc.isLocked || false,
-                        date: scrap.date,
-                        returnedBy: scrap.returnedBy
-                    });
-                }
-                return acc;
-            }, []);
-
-            setLinkedEntries({
-                complaintId,
-                issues,
-                purchases,
-                scraps
-            });
-        } catch (err) {
-            console.error('Error loading linked entries from localStorage:', err);
-        } finally {
-            setLoadingLinks(false);
-        }
-    };
-
-    const loadStockItems = () => {
-        try {
             const data = JSON.parse(localStorage.getItem('snglData'));
-            if (data && data.stock) {
-                setStockItems(data.stock);
-            }
-        } catch (error) {
-            console.error('Error loading stock items:', error);
-        }
-    };
-
-    const loadComplaint = () => {
-        try {
-            const data = JSON.parse(localStorage.getItem('snglData'));
-            const complaint = data.complaints.find(c => c.id === id);
+            const complaint = (data?.complaints || []).find(c => c.id === id);
             if (complaint) {
                 setFormData({
-                    ...complaint,
-                    complaintDate: complaint.complaintDate || new Date().toISOString().split('T')[0]
+                    complaintDate: complaint.complaintDate
+                        ? new Date(complaint.complaintDate).toISOString().split('T')[0]
+                        : new Date().toISOString().split('T')[0],
+                    description: complaint.description || '',
+                    complainant: complaint.complainant || '',
+                    status: complaint.status || 'Open',
+                    remarks: complaint.remarks || ''
                 });
             }
-        } catch (error) {
-            console.error('Error loading complaint:', error);
+        } catch (e) {
+            console.error('Error loading complaint:', e);
         }
     };
 
@@ -145,136 +70,76 @@ const ComplaintForm = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleAddStoreItem = () => {
-        if (!newStoreItem.itemId || !newStoreItem.quantity) {
-            alert('Please select an item and enter quantity');
-            return;
-        }
-
-        const item = stockItems.find(s => s.itemId === newStoreItem.itemId);
-        setFormData(prev => ({
-            ...prev,
-            storeItems: [...prev.storeItems, {
-                itemId: newStoreItem.itemId,
-                itemName: item ? item.itemName : '',
-                quantity: Number(newStoreItem.quantity),
-                unit: newStoreItem.unit
-            }]
-        }));
-        setNewStoreItem({ itemId: '', quantity: 1, unit: 'Pieces' });
-    };
-
-    const handleRemoveStoreItem = (index) => {
-        setFormData(prev => ({
-            ...prev,
-            storeItems: prev.storeItems.filter((_, i) => i !== index)
-        }));
-    };
-
-    const handleAddMarketItem = () => {
-        if (!newMarketItem.itemName || !newMarketItem.quantity || !newMarketItem.unitPrice) {
-            alert('Please fill all fields');
-            return;
-        }
-
-        const total = newMarketItem.quantity * newMarketItem.unitPrice;
-        setFormData(prev => ({
-            ...prev,
-            marketItems: [...prev.marketItems, {
-                ...newMarketItem,
-                quantity: Number(newMarketItem.quantity),
-                unitPrice: Number(newMarketItem.unitPrice),
-                total: total
-            }]
-        }));
-        setNewMarketItem({ itemName: '', quantity: 1, unit: 'Pieces', unitPrice: 0 });
-    };
-
-    const handleRemoveMarketItem = (index) => {
-        setFormData(prev => ({
-            ...prev,
-            marketItems: prev.marketItems.filter((_, i) => i !== index)
-        }));
-    };
-
-    const calculateTotalBill = () => {
-        const marketTotal = formData.marketItems.reduce((sum, item) => sum + (item.total || 0), 0);
-        return marketTotal;
-    };
-
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        setError('');
 
-        // Validation
-        if (!formData.location || !formData.indenter || !formData.procurementType) {
-            alert('Please fill in all required fields');
+        if (!formData.description.trim()) {
+            setError('Description is required.');
+            return;
+        }
+        if (!formData.complainant.trim()) {
+            setError('Complainant is required.');
             return;
         }
 
-        if (formData.procurementType === 'STORE' && formData.storeItems.length === 0) {
-            alert('Please add at least one store item');
-            return;
-        }
+        setLoading(true);
 
-        if (formData.procurementType === 'MARKET' && formData.marketItems.length === 0) {
-            alert('Please add at least one market item');
-            return;
-        }
-
-        if (formData.procurementType === 'BOTH' && (formData.storeItems.length === 0 || formData.marketItems.length === 0)) {
-            alert('Please add both store and market items');
-            return;
-        }
-
+        // Try API
         try {
-            const data = JSON.parse(localStorage.getItem('snglData'));
+            if (isEdit) {
+                await api.updateComplaint(id, formData);
+            } else {
+                await api.createComplaint(formData);
+            }
+            navigate('/complaints');
+            return;
+        } catch (apiErr) {
+            console.warn('API call failed, using localStorage fallback:', apiErr);
+        }
+
+        // Fallback: localStorage
+        try {
+            const data = JSON.parse(localStorage.getItem('snglData')) || { complaints: [], counters: { complaint: 0 } };
             const now = new Date().toISOString();
-            const totalBill = calculateTotalBill();
 
             if (isEdit) {
-                // Update existing complaint
                 const index = data.complaints.findIndex(c => c.id === id);
                 if (index !== -1) {
                     data.complaints[index] = {
                         ...data.complaints[index],
                         ...formData,
-                        totalBillAmount: totalBill,
                         modifiedBy: 'Admin',
                         modifiedAt: now
                     };
                 }
             } else {
-                // Generate new complaint number
-                const now = new Date();
-                const month = String(now.getMonth() + 1).padStart(2, '0');
-                const year = now.getFullYear();
-                const complaintCount = data.complaints.filter(c => c.id.endsWith(`/${month}/${year}`)).length + 1;
-                const complaintId = `${String(complaintCount).padStart(2, '0')}/${month}/${year}`;
+                const d = new Date();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                const thisMonthCount = data.complaints.filter(c => c.id && c.id.endsWith(`/${month}/${year}`)).length + 1;
+                const newId = `${String(thisMonthCount).padStart(2, '0')}/${month}/${year}`;
 
-                const newComplaint = {
-                    id: complaintId,
+                data.complaints.push({
+                    id: newId,
                     ...formData,
-                    totalBillAmount: totalBill,
-                    voucherNumber: '',
-                    completedDate: null,
-                    isCompleted: false,
-                    sourceDocType: 'COMPLAINT',
-                    sourceReference: complaintId,
+                    status: 'Open',
                     createdBy: 'Admin',
                     createdAt: now,
                     modifiedBy: 'Admin',
                     modifiedAt: now
-                };
-
-                data.complaints.push(newComplaint);
-                data.counters.complaint += 1;
+                });
+                data.counters = data.counters || {};
+                data.counters.complaint = (data.counters.complaint || 0) + 1;
             }
 
             localStorage.setItem('snglData', JSON.stringify(data));
             navigate('/complaints');
-        } catch (error) {
-            console.error('Error saving complaint:', error);
-            alert('Error saving complaint');
+        } catch (localErr) {
+            console.error('localStorage save error:', localErr);
+            setError('Failed to save complaint. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -288,6 +153,12 @@ const ComplaintForm = () => {
                     </button>
                 </div>
             </div>
+
+            {error && (
+                <div className="alert alert-danger" style={{ marginBottom: '16px', padding: '12px 16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', color: '#dc2626' }}>
+                    {error}
+                </div>
+            )}
 
             <form onSubmit={handleSubmit} className="card">
                 <div className="form-row">
@@ -303,241 +174,45 @@ const ComplaintForm = () => {
                         />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Location *</label>
+                        <label className="form-label">Complainant *</label>
                         <input
                             type="text"
-                            name="location"
-                            value={formData.location}
+                            name="complainant"
+                            value={formData.complainant}
                             onChange={handleChange}
                             className="form-control"
-                            placeholder="Building/Area/Room"
+                            placeholder="Name of person / department"
                             required
                         />
                     </div>
-                    <div className="form-group">
-                        <label className="form-label">Indenter *</label>
-                        <input
-                            type="text"
-                            name="indenter"
-                            value={formData.indenter}
-                            onChange={handleChange}
-                            className="form-control"
-                            placeholder="Person/Department"
-                            required
-                        />
-                    </div>
+                    {isEdit && (
+                        <div className="form-group">
+                            <label className="form-label">Status</label>
+                            <select
+                                name="status"
+                                value={formData.status}
+                                onChange={handleChange}
+                                className="form-control"
+                            >
+                                {COMPLAINT_STATUSES.map(s => (
+                                    <option key={s.value} value={s.value}>{s.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">Procurement Type *</label>
-                    <select
-                        name="procurementType"
-                        value={formData.procurementType}
+                    <label className="form-label">Description *</label>
+                    <textarea
+                        name="description"
+                        value={formData.description}
                         onChange={handleChange}
                         className="form-control"
+                        rows="4"
+                        placeholder="Describe the complaint in detail..."
                         required
-                    >
-                        {PROCUREMENT_TYPES.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                        ))}
-                    </select>
-                </div>
-
-                {/* Store Items Section */}
-                {(formData.procurementType === 'STORE' || formData.procurementType === 'BOTH') && (
-                    <div className="items-section">
-                        <h3>Store Items</h3>
-                        <div className="items-grid">
-                            <select
-                                value={newStoreItem.itemId}
-                                onChange={(e) => setNewStoreItem(prev => ({ ...prev, itemId: e.target.value }))}
-                                className="form-control"
-                            >
-                                <option value="">Select Item</option>
-                                {stockItems.map(item => (
-                                    <option key={item.itemId} value={item.itemId}>
-                                        {item.itemName} ({item.currentStock} {item.unit} available)
-                                    </option>
-                                ))}
-                            </select>
-                            <input
-                                type="number"
-                                placeholder="Quantity"
-                                value={newStoreItem.quantity}
-                                onChange={(e) => setNewStoreItem(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                                className="form-control"
-                                min="1"
-                            />
-                            <select
-                                value={newStoreItem.unit}
-                                onChange={(e) => setNewStoreItem(prev => ({ ...prev, unit: e.target.value }))}
-                                className="form-control"
-                            >
-                                {UNITS.map(unit => (
-                                    <option key={unit} value={unit}>{unit}</option>
-                                ))}
-                            </select>
-                            <button type="button" className="btn btn-primary" onClick={handleAddStoreItem}>
-                                <FaPlus /> Add
-                            </button>
-                        </div>
-
-                        {formData.storeItems.length > 0 && (
-                            <div className="items-list">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Item Name</th>
-                                            <th>Quantity</th>
-                                            <th>Unit</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {formData.storeItems.map((item, index) => (
-                                            <tr key={index}>
-                                                <td>{item.itemName}</td>
-                                                <td>{item.quantity}</td>
-                                                <td>{item.unit}</td>
-                                                <td>
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-danger btn-sm"
-                                                        onClick={() => handleRemoveStoreItem(index)}
-                                                    >
-                                                        <FaTrash />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Market Items Section */}
-                {(formData.procurementType === 'MARKET' || formData.procurementType === 'BOTH') && (
-                    <div className="items-section">
-                        <h3>Market Items</h3>
-                        <div className="items-grid">
-                            <input
-                                type="text"
-                                placeholder="Item Name"
-                                value={newMarketItem.itemName}
-                                onChange={(e) => setNewMarketItem(prev => ({ ...prev, itemName: e.target.value }))}
-                                className="form-control"
-                            />
-                            <input
-                                type="number"
-                                placeholder="Quantity"
-                                value={newMarketItem.quantity}
-                                onChange={(e) => setNewMarketItem(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                                className="form-control"
-                                min="1"
-                            />
-                            <select
-                                value={newMarketItem.unit}
-                                onChange={(e) => setNewMarketItem(prev => ({ ...prev, unit: e.target.value }))}
-                                className="form-control"
-                            >
-                                {UNITS.map(unit => (
-                                    <option key={unit} value={unit}>{unit}</option>
-                                ))}
-                            </select>
-                            <input
-                                type="number"
-                                placeholder="Unit Price"
-                                value={newMarketItem.unitPrice}
-                                onChange={(e) => setNewMarketItem(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
-                                className="form-control"
-                                min="0"
-                                step="0.01"
-                            />
-                            <button type="button" className="btn btn-primary" onClick={handleAddMarketItem}>
-                                <FaPlus /> Add
-                            </button>
-                        </div>
-
-                        {formData.marketItems.length > 0 && (
-                            <div className="items-list">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Item Name</th>
-                                            <th>Quantity</th>
-                                            <th>Unit</th>
-                                            <th>Unit Price</th>
-                                            <th>Total</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {formData.marketItems.map((item, index) => (
-                                            <tr key={index}>
-                                                <td>{item.itemName}</td>
-                                                <td>{item.quantity}</td>
-                                                <td>{item.unit}</td>
-                                                <td>PKR {item.unitPrice}</td>
-                                                <td>PKR {item.total}</td>
-                                                <td>
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-danger btn-sm"
-                                                        onClick={() => handleRemoveMarketItem(index)}
-                                                    >
-                                                        <FaTrash />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                    <tfoot>
-                                        <tr>
-                                            <td colSpan="4" style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                                                Total Bill:
-                                            </td>
-                                            <td colSpan="2" style={{ fontWeight: 'bold' }}>
-                                                PKR {calculateTotalBill()}
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <div className="form-row">
-                    <div className="form-group">
-                        <label className="form-label">Attended By</label>
-                        <input
-                            type="text"
-                            name="attendedBy"
-                            value={formData.attendedBy}
-                            onChange={handleChange}
-                            className="form-control"
-                            placeholder="Worker/Supervisor name"
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Status</label>
-                        <select
-                            name="status"
-                            value={formData.status}
-                            onChange={handleChange}
-                            className="form-control"
-                        >
-                            <option value="NEW">New</option>
-                            <option value="ASSIGNED">Assigned</option>
-                            <option value="IN_PROGRESS">In Progress</option>
-                            <option value="ON_HOLD">On Hold</option>
-                            <option value="COMPLETED">Completed</option>
-                            <option value="VERIFIED">Verified</option>
-                            <option value="CLOSED">Closed</option>
-                        </select>
-                    </div>
+                    />
                 </div>
 
                 <div className="form-group">
@@ -547,164 +222,16 @@ const ComplaintForm = () => {
                         value={formData.remarks}
                         onChange={handleChange}
                         className="form-control"
-                        rows="3"
-                        placeholder="Additional notes..."
+                        rows="2"
+                        placeholder="Optional additional notes..."
                     />
                 </div>
 
                 <div className="form-actions">
-                    <button type="submit" className="btn btn-primary">
-                        <FaSave /> {isEdit ? 'Update' : 'Create'} Complaint
+                    <button type="submit" className="btn btn-primary" disabled={loading}>
+                        <FaSave /> {loading ? 'Saving...' : (isEdit ? 'Update Complaint' : 'Create Complaint')}
                     </button>
                 </div>
-
-                {/* Linked Entries Section */}
-                {id && (
-                    <div className="linked-entries-section" style={{ marginTop: '24px', paddingTop: '24px', borderTop: '2px solid #e5e7eb' }}>
-                        <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '16px' }}>
-                            Linked Entries for Complaint {id}
-                        </h3>
-
-                        {loadingLinks ? (
-                            <p style={{ color: '#6b7280' }}>Loading linked entries...</p>
-                        ) : linkedEntries ? (
-                            <>
-                                {/* Issues Tab / Table */}
-                                {linkedEntries.issues && linkedEntries.issues.length > 0 && (
-                                    <div style={{ marginBottom: '20px' }}>
-                                        <h4 style={{ fontSize: '1rem', fontWeight: '500', marginBottom: '12px', color: '#2563EB' }}>
-                                            Issues ({linkedEntries.issues.length})
-                                        </h4>
-                                        <table className="table">
-                                            <thead>
-                                                <tr>
-                                                    <th>IR #</th>
-                                                    <th>Item</th>
-                                                    <th>Allocation</th>
-                                                    <th>Unit</th>
-                                                    <th>Issued To</th>
-                                                    <th>Status</th>
-                                                    <th>Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {linkedEntries.issues.map(issue => (
-                                                    <tr key={issue.irNo}>
-                                                        <td>{issue.irNo}</td>
-                                                        <td>{issue.itemName}</td>
-                                                        <td><strong>{issue.allocation}</strong></td>
-                                                        <td>{issue.unit}</td>
-                                                        <td>{issue.issuedTo}</td>
-                                                        <td>
-                                                            <span className={`badge ${issue.status === 'COMPLETED' ? 'badge-success' : issue.isLocked ? 'badge-info' : 'badge-warning'}`}>
-                                                                {issue.isLocked ? '🔒 Locked' : issue.status}
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <Link to={`/issues/view/${issue.irNo}`} className="btn btn-outline btn-sm" title="View Issue">
-                                                                <FaEye /> View
-                                                            </Link>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-
-                                {/* Purchases Tab / Table */}
-                                {linkedEntries.purchases && linkedEntries.purchases.length > 0 && (
-                                    <div style={{ marginBottom: '20px' }}>
-                                        <h4 style={{ fontSize: '1rem', fontWeight: '500', marginBottom: '12px', color: '#2563EB' }}>
-                                            Purchases ({linkedEntries.purchases.length})
-                                        </h4>
-                                        <table className="table">
-                                            <thead>
-                                                <tr>
-                                                    <th>CP #</th>
-                                                    <th>Items</th>
-                                                    <th>Allocation</th>
-                                                    <th>Purchased By</th>
-                                                    <th>Status</th>
-                                                    <th>Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {linkedEntries.purchases.map(purchase => (
-                                                    <tr key={purchase.cpNo}>
-                                                        <td>{purchase.cpNo}</td>
-                                                        <td>{Array.isArray(purchase.items) ? purchase.items.join(', ') : purchase.items}</td>
-                                                        <td><strong>${purchase.allocation}</strong></td>
-                                                        <td>{purchase.purchasedBy}</td>
-                                                        <td>
-                                                            <span className={`badge ${purchase.status === 'COMPLETED' ? 'badge-success' : purchase.isLocked ? 'badge-info' : 'badge-warning'}`}>
-                                                                {purchase.isLocked ? '🔒 Locked' : purchase.status}
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <Link to={`/purchases/view/${purchase.cpNo}`} className="btn btn-outline btn-sm" title="View Purchase">
-                                                                <FaEye /> View
-                                                            </Link>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-
-                                {/* Scraps Tab / Table */}
-                                {linkedEntries.scraps && linkedEntries.scraps.length > 0 && (
-                                    <div style={{ marginBottom: '20px' }}>
-                                        <h4 style={{ fontSize: '1rem', fontWeight: '500', marginBottom: '12px', color: '#2563EB' }}>
-                                            Scraps ({linkedEntries.scraps.length})
-                                        </h4>
-                                        <table className="table">
-                                            <thead>
-                                                <tr>
-                                                    <th>SR #</th>
-                                                    <th>Item</th>
-                                                    <th>Allocation</th>
-                                                    <th>Unit</th>
-                                                    <th>Returned By</th>
-                                                    <th>Status</th>
-                                                    <th>Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {linkedEntries.scraps.map(scrap => (
-                                                    <tr key={scrap.srNo}>
-                                                        <td>{scrap.srNo}</td>
-                                                        <td>{scrap.itemName}</td>
-                                                        <td><strong>{scrap.allocation}</strong></td>
-                                                        <td>{scrap.unit}</td>
-                                                        <td>{scrap.returnedBy}</td>
-                                                        <td>
-                                                            <span className={`badge ${scrap.status === 'COMPLETED' ? 'badge-success' : scrap.isLocked ? 'badge-info' : 'badge-warning'}`}>
-                                                                {scrap.isLocked ? '🔒 Locked' : scrap.status}
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <Link to={`/scraps/view/${scrap.srNo}`} className="btn btn-outline btn-sm" title="View Scrap">
-                                                                <FaEye /> View
-                                                            </Link>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-
-                                {(!linkedEntries.issues?.length && !linkedEntries.purchases?.length && !linkedEntries.scraps?.length) && (
-                                    <p style={{ color: '#6b7280', fontStyle: 'italic' }}>
-                                        No linked issues, purchases, or scrap entries found for this complaint.
-                                    </p>
-                                )}
-                            </>
-                        ) : null}
-                    </div>
-                )}
             </form>
         </div>
     );

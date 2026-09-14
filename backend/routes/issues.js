@@ -2,13 +2,17 @@
 const express = require('express');
 const router = express.Router();
 const Issue = require('../models/Issue');
-const Stock = require('../models/Stock');
 const Counter = require('../models/Counter');
 
-// Get all issues
+// Get all issues (optionally filter by sourceReference)
 router.get('/', async (req, res) => {
     try {
-        const issues = await Issue.find().sort({ createdAt: -1 });
+        const filter = {};
+        if (req.query.sourceRef) {
+            filter.sourceReference = req.query.sourceRef;
+            filter.sourceDocType = 'COMPLAINT';
+        }
+        const issues = await Issue.find(filter).sort({ createdAt: -1 });
         res.json(issues);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -31,71 +35,67 @@ router.get('/:id', async (req, res) => {
 // Create issue
 router.post('/', async (req, res) => {
     try {
+        const { sourceDocType, sourceReference } = req.body;
+
+        // Validate source document
+        if (!sourceDocType) {
+            return res.status(400).json({ message: 'Source document type is required.' });
+        }
+
+        // COMPLAINT source: validate complaint exists and is Open
+        if (sourceDocType === 'COMPLAINT') {
+            if (!sourceReference || !sourceReference.trim()) {
+                return res.status(400).json({ message: 'Complaint reference is required when source is COMPLAINT.' });
+            }
+            const Complaint = require('../models/Complaint');
+            const complaint = await Complaint.findOne({ id: sourceReference.trim() });
+            if (!complaint) {
+                return res.status(400).json({ message: `Complaint '${sourceReference}' does not exist.` });
+            }
+            if (complaint.status !== 'Open') {
+                return res.status(400).json({ message: `Complaint '${sourceReference}' is not Open. Only Open complaints can be referenced.` });
+            }
+        }
+
+        // Non-ROUTINE_WORK and non-COMPLAINT sources require a reference
+        if (sourceDocType !== 'ROUTINE_WORK' && sourceDocType !== 'COMPLAINT') {
+            if (!sourceReference || !sourceReference.trim()) {
+                return res.status(400).json({ message: 'A reference number is required for this source document type.' });
+            }
+        }
+
         let counter = await Counter.findById('issue');
         if (!counter) {
             counter = new Counter({ _id: 'issue', seq: 0 });
         }
-
-        // Validate complaint source documents
-        const Complaint = require('../models/Complaint');
-        if (req.body.sourceDocuments && req.body.sourceDocuments.length > 0) {
-            for (const doc of req.body.sourceDocuments) {
-                if (doc.sourceType === 'COMPLAINT') {
-                    const complaint = await Complaint.findOne({ id: doc.reference });
-                    if (!complaint) {
-                        return res.status(400).json({ message: `Complaint with ID '${doc.reference}' does not exist.` });
-                    }
-                }
-            }
-        }
-
         counter.seq += 1;
         await counter.save();
 
         const irNo = `IR-${String(counter.seq).padStart(3, '0')}`;
+        const now = new Date();
 
         const issue = new Issue({
-            ...req.body,
             irNo,
+            issueDate: req.body.issueDate,
+            tradeSection: req.body.tradeSection,
+            itemId: req.body.itemId,
+            itemName: req.body.itemName,
+            quantity: req.body.quantity,
+            unit: req.body.unit,
+            description: req.body.description || '',
+            issuedTo: req.body.issuedTo,
+            issuedBy: req.body.issuedBy || 'Store Keeper',
+            sourceDocType,
+            sourceReference: sourceDocType === 'ROUTINE_WORK' ? '' : (sourceReference || '').trim(),
+            remarks: req.body.remarks || '',
             createdBy: 'Admin',
-            createdAt: new Date(),
+            createdAt: now,
             modifiedBy: 'Admin',
-            modifiedAt: new Date()
+            modifiedAt: now,
+            isActive: true
         });
 
         await issue.save();
-
-        // Update stock
-        const stockItem = await Stock.findOne({ itemId: req.body.itemId });
-        if (stockItem) {
-            stockItem.currentStock -= req.body.quantity;
-            stockItem.totalValue = stockItem.currentStock * stockItem.unitPrice;
-            stockItem.lastUpdated = new Date();
-            stockItem.modifiedBy = 'Admin';
-            stockItem.modifiedAt = new Date();
-
-            // Update status
-            if (stockItem.currentStock < stockItem.minimumStock * 0.5) {
-                stockItem.status = 'CRITICAL';
-            } else if (stockItem.currentStock < stockItem.minimumStock) {
-                stockItem.status = 'LOW';
-            } else {
-                stockItem.status = 'GOOD';
-            }
-
-            stockItem.transactions.push({
-                date: new Date(),
-                type: 'ISSUE',
-                documentNo: irNo,
-                quantity: -req.body.quantity,
-                balance: stockItem.currentStock,
-                sourceDoc: req.body.sourceDocuments[0]?.reference || '',
-                remarks: req.body.description || 'Issued from store'
-            });
-
-            await stockItem.save();
-        }
-
         res.status(201).json(issue);
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -110,9 +110,34 @@ router.put('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Issue not found' });
         }
 
-        Object.assign(issue, req.body);
-        issue.modifiedBy = 'Admin';
-        issue.modifiedAt = new Date();
+        // Validate if source is changing to COMPLAINT
+        if (req.body.sourceDocType === 'COMPLAINT' && req.body.sourceReference) {
+            const Complaint = require('../models/Complaint');
+            const complaint = await Complaint.findOne({ id: req.body.sourceReference.trim() });
+            if (!complaint) {
+                return res.status(400).json({ message: `Complaint '${req.body.sourceReference}' does not exist.` });
+            }
+            if (complaint.status !== 'Open') {
+                return res.status(400).json({ message: `Complaint '${req.body.sourceReference}' is not Open.` });
+            }
+        }
+
+        Object.assign(issue, {
+            issueDate: req.body.issueDate || issue.issueDate,
+            tradeSection: req.body.tradeSection || issue.tradeSection,
+            itemId: req.body.itemId || issue.itemId,
+            itemName: req.body.itemName || issue.itemName,
+            quantity: req.body.quantity || issue.quantity,
+            unit: req.body.unit || issue.unit,
+            description: req.body.description !== undefined ? req.body.description : issue.description,
+            issuedTo: req.body.issuedTo || issue.issuedTo,
+            issuedBy: req.body.issuedBy || issue.issuedBy,
+            sourceDocType: req.body.sourceDocType || issue.sourceDocType,
+            sourceReference: req.body.sourceDocType === 'ROUTINE_WORK' ? '' : (req.body.sourceReference || issue.sourceReference),
+            remarks: req.body.remarks !== undefined ? req.body.remarks : issue.remarks,
+            modifiedBy: 'Admin',
+            modifiedAt: new Date()
+        });
 
         await issue.save();
         res.json(issue);

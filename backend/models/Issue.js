@@ -12,21 +12,22 @@ const issueSchema = new mongoose.Schema({
     description: String,
     issuedTo: { type: String, required: true },
     issuedBy: String,
-    sourceDocuments: [{
-        sourceType: { type: String, enum: ['COMPLAINT', 'APPROVAL', 'EMAIL', 'HSE', 'OTHER'] },
-        reference: String,
-        allocation: Number,
-        status: { type: String, enum: ['PENDING', 'COMPLETED'], default: 'PENDING' },
-        isLocked: { type: Boolean, default: false },
-        lockedAt: Date,
-        lockedBy: String
-    }],
+    // Flat single source document (one per entry)
+    sourceDocType: {
+        type: String,
+        enum: ['COMPLAINT', 'APPROVAL', 'HSE_ANOMALY', 'EMAIL', 'ROUTINE_WORK'],
+        required: true
+    },
+    sourceReference: {
+        type: String,
+        // Required for all types except ROUTINE_WORK
+        default: ''
+    },
     remarks: String,
     createdBy: String,
     createdAt: { type: Date, default: Date.now },
     modifiedBy: String,
     modifiedAt: Date,
-    modificationReason: String,
     isActive: { type: Boolean, default: true }
 });
 

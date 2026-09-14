@@ -4,10 +4,15 @@ const router = express.Router();
 const Scrap = require('../models/Scrap');
 const Counter = require('../models/Counter');
 
-// Get all scraps
+// Get all scraps (optionally filter by sourceReference)
 router.get('/', async (req, res) => {
     try {
-        const scraps = await Scrap.find().sort({ createdAt: -1 });
+        const filter = {};
+        if (req.query.sourceRef) {
+            filter.sourceReference = req.query.sourceRef;
+            filter.sourceDocType = 'COMPLAINT';
+        }
+        const scraps = await Scrap.find(filter).sort({ createdAt: -1 });
         res.json(scraps);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -30,72 +35,67 @@ router.get('/:id', async (req, res) => {
 // Create scrap
 router.post('/', async (req, res) => {
     try {
+        const { sourceDocType, sourceReference } = req.body;
+
+        // Validate source document
+        if (!sourceDocType) {
+            return res.status(400).json({ message: 'Source document type is required.' });
+        }
+
+        // COMPLAINT source: validate complaint exists and is Open
+        if (sourceDocType === 'COMPLAINT') {
+            if (!sourceReference || !sourceReference.trim()) {
+                return res.status(400).json({ message: 'Complaint reference is required when source is COMPLAINT.' });
+            }
+            const Complaint = require('../models/Complaint');
+            const complaint = await Complaint.findOne({ id: sourceReference.trim() });
+            if (!complaint) {
+                return res.status(400).json({ message: `Complaint '${sourceReference}' does not exist.` });
+            }
+            if (complaint.status !== 'Open') {
+                return res.status(400).json({ message: `Complaint '${sourceReference}' is not Open. Only Open complaints can be referenced.` });
+            }
+        }
+
+        // Non-ROUTINE_WORK and non-COMPLAINT sources require a reference
+        if (sourceDocType !== 'ROUTINE_WORK' && sourceDocType !== 'COMPLAINT') {
+            if (!sourceReference || !sourceReference.trim()) {
+                return res.status(400).json({ message: 'A reference number is required for this source document type.' });
+            }
+        }
+
         let counter = await Counter.findById('scrap');
         if (!counter) {
             counter = new Counter({ _id: 'scrap', seq: 0 });
         }
-
-        // Validate complaint source documents
-        const Complaint = require('../models/Complaint');
-        if (req.body.sourceDocuments && req.body.sourceDocuments.length > 0) {
-            for (const doc of req.body.sourceDocuments) {
-                if (doc.sourceType === 'COMPLAINT') {
-                    const complaint = await Complaint.findOne({ id: doc.reference });
-                    if (!complaint) {
-                        return res.status(400).json({ message: `Complaint with ID '${doc.reference}' does not exist.` });
-                    }
-                }
-            }
-        }
-
         counter.seq += 1;
         await counter.save();
 
         const srNo = `SR-${String(counter.seq).padStart(3, '0')}`;
+        const now = new Date();
 
         const scrap = new Scrap({
-            ...req.body,
             srNo,
+            date: req.body.date,
+            tradeSection: req.body.tradeSection,
+            itemId: req.body.itemId,
+            itemName: req.body.itemName,
+            quantity: req.body.quantity,
+            unit: req.body.unit,
+            description: req.body.description || '',
+            returnedBy: req.body.returnedBy,
+            receivedBy: req.body.receivedBy || 'Store Keeper',
+            sourceDocType,
+            sourceReference: sourceDocType === 'ROUTINE_WORK' ? '' : (sourceReference || '').trim(),
+            remarks: req.body.remarks || '',
             createdBy: 'Admin',
-            createdAt: new Date(),
+            createdAt: now,
             modifiedBy: 'Admin',
-            modifiedAt: new Date()
+            modifiedAt: now,
+            isActive: true
         });
 
         await scrap.save();
-
-        // Update stock
-        const Stock = require('../models/Stock');
-        const stockItem = await Stock.findOne({ itemId: req.body.itemId });
-        if (stockItem) {
-            stockItem.currentStock += Number(req.body.quantity);
-            stockItem.totalValue = stockItem.currentStock * stockItem.unitPrice;
-            stockItem.lastUpdated = new Date();
-            stockItem.modifiedBy = 'Admin';
-            stockItem.modifiedAt = new Date();
-
-            // Update status
-            if (stockItem.currentStock < stockItem.minimumStock * 0.5) {
-                stockItem.status = 'CRITICAL';
-            } else if (stockItem.currentStock < stockItem.minimumStock) {
-                stockItem.status = 'LOW';
-            } else {
-                stockItem.status = 'GOOD';
-            }
-
-            stockItem.transactions.push({
-                date: new Date(),
-                type: 'SCRAP_RETURN',
-                documentNo: srNo,
-                quantity: Number(req.body.quantity),
-                balance: stockItem.currentStock,
-                sourceDoc: req.body.sourceDocuments[0]?.reference || '',
-                remarks: req.body.description || 'Returned scrap material'
-            });
-
-            await stockItem.save();
-        }
-
         res.status(201).json(scrap);
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -110,9 +110,34 @@ router.put('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Scrap not found' });
         }
 
-        Object.assign(scrap, req.body);
-        scrap.modifiedBy = 'Admin';
-        scrap.modifiedAt = new Date();
+        // Validate if source is changing to COMPLAINT
+        if (req.body.sourceDocType === 'COMPLAINT' && req.body.sourceReference) {
+            const Complaint = require('../models/Complaint');
+            const complaint = await Complaint.findOne({ id: req.body.sourceReference.trim() });
+            if (!complaint) {
+                return res.status(400).json({ message: `Complaint '${req.body.sourceReference}' does not exist.` });
+            }
+            if (complaint.status !== 'Open') {
+                return res.status(400).json({ message: `Complaint '${req.body.sourceReference}' is not Open.` });
+            }
+        }
+
+        Object.assign(scrap, {
+            date: req.body.date || scrap.date,
+            tradeSection: req.body.tradeSection || scrap.tradeSection,
+            itemId: req.body.itemId || scrap.itemId,
+            itemName: req.body.itemName || scrap.itemName,
+            quantity: req.body.quantity || scrap.quantity,
+            unit: req.body.unit || scrap.unit,
+            description: req.body.description !== undefined ? req.body.description : scrap.description,
+            returnedBy: req.body.returnedBy || scrap.returnedBy,
+            receivedBy: req.body.receivedBy || scrap.receivedBy,
+            sourceDocType: req.body.sourceDocType || scrap.sourceDocType,
+            sourceReference: req.body.sourceDocType === 'ROUTINE_WORK' ? '' : (req.body.sourceReference || scrap.sourceReference),
+            remarks: req.body.remarks !== undefined ? req.body.remarks : scrap.remarks,
+            modifiedBy: 'Admin',
+            modifiedAt: new Date()
+        });
 
         await scrap.save();
         res.json(scrap);

@@ -6,9 +6,13 @@ import Header from './Header';
 import './Layout.css';
 
 function Layout({ children }) {
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const location = useLocation();
     const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
+
+    React.useEffect(() => {
+        setSidebarOpen(false);
+    }, [location.pathname]);
 
     return (
         <div className={`layout ${isDashboard ? 'no-sidebar' : ''}`}>

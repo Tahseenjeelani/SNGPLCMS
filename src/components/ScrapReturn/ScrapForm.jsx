@@ -17,6 +17,7 @@ const ScrapForm = () => {
         itemName: '',
         quantity: 1,
         unit: 'Pieces',
+        location: '',
         description: '',
         returnedBy: '',
         receivedBy: 'Store Keeper',
@@ -25,7 +26,7 @@ const ScrapForm = () => {
         remarks: ''
     });
 
-    const [stockItems, setStockItems] = useState([]);
+    const [allTradeItems, setAllTradeItems] = useState([]);
     const [openComplaints, setOpenComplaints] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -33,16 +34,56 @@ const ScrapForm = () => {
     const sourceConfig = getSourceDocConfig(formData.sourceDocType);
 
     useEffect(() => {
-        loadStockItems();
+        loadAllTradeItems();
         loadOpenComplaints();
         if (isEdit) loadScrap();
     }, [id]);
 
-    const loadStockItems = () => {
+    const loadAllTradeItems = () => {
         try {
-            const data = JSON.parse(localStorage.getItem('snglData'));
-            setStockItems((data?.stock || []).filter(s => s.isActive !== false));
-        } catch (e) { console.error(e); }
+            const data = JSON.parse(localStorage.getItem('snglData')) || {};
+            const issues = data.issues || [];
+            const purchases = data.purchases || [];
+            const manualStocks = data.manualStocks || [];
+
+            const itemMap = {};
+
+            purchases.forEach(p => {
+                const trade = p.tradeSection || 'MASONRY';
+                (p.items || []).forEach(item => {
+                    const name = (item.itemName || '').trim();
+                    if (!name) return;
+                    const key = `${trade}_${name.toLowerCase()}`;
+                    if (!itemMap[key]) {
+                        itemMap[key] = { itemId: key, itemName: name, tradeSection: trade, unit: item.unit || 'Pieces' };
+                    }
+                });
+            });
+
+            issues.forEach(iss => {
+                const trade = iss.tradeSection || 'MASONRY';
+                const name = (iss.itemName || '').trim();
+                if (!name) return;
+                const key = `${trade}_${name.toLowerCase()}`;
+                if (!itemMap[key]) {
+                    itemMap[key] = { itemId: key, itemName: name, tradeSection: trade, unit: iss.unit || 'Pieces' };
+                }
+            });
+
+            manualStocks.forEach(m => {
+                const trade = m.tradeSection || 'MASONRY';
+                const name = (m.itemName || '').trim();
+                if (!name) return;
+                const key = `${trade}_${name.toLowerCase()}`;
+                if (!itemMap[key]) {
+                    itemMap[key] = { itemId: key, itemName: name, tradeSection: trade, unit: m.unit || 'Pieces' };
+                }
+            });
+
+            setAllTradeItems(Object.values(itemMap));
+        } catch (e) {
+            console.error('Error loading trade items:', e);
+        }
     };
 
     const loadOpenComplaints = useCallback(async () => {
@@ -76,6 +117,7 @@ const ScrapForm = () => {
             itemName: s.itemName || '',
             quantity: s.quantity || 1,
             unit: s.unit || 'Pieces',
+            location: s.location || '',
             description: s.description || '',
             returnedBy: s.returnedBy || '',
             receivedBy: s.receivedBy || 'Store Keeper',
@@ -94,11 +136,12 @@ const ScrapForm = () => {
         }
 
         if (name === 'itemId') {
-            const item = stockItems.find(s => s.itemId === value);
+            const item = allTradeItems.find(s => s.itemId === value);
             setFormData(prev => ({
                 ...prev,
                 itemId: value,
                 itemName: item ? item.itemName : '',
+                tradeSection: item ? item.tradeSection : prev.tradeSection,
                 unit: item ? item.unit : prev.unit
             }));
             return;
@@ -202,14 +245,14 @@ const ScrapForm = () => {
 
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">Item *</label>
-                        {stockItems.length > 0 ? (
+                        <label className="form-label">Item (All Trade Items) *</label>
+                        {allTradeItems.length > 0 ? (
                             <select name="itemId" value={formData.itemId}
                                 onChange={handleChange} className="form-control" required>
-                                <option value="">Select Item</option>
-                                {stockItems.map(item => (
+                                <option value="">— Select Item —</option>
+                                {allTradeItems.map(item => (
                                     <option key={item.itemId} value={item.itemId}>
-                                        {item.itemName}
+                                        {item.itemName} [{item.tradeSection}]
                                     </option>
                                 ))}
                             </select>
@@ -227,14 +270,25 @@ const ScrapForm = () => {
                     <div className="form-group">
                         <label className="form-label">Unit</label>
                         <select name="unit" value={formData.unit}
-                            onChange={handleChange} className="form-control"
-                            disabled={!!formData.itemId && stockItems.some(s => s.itemId === formData.itemId)}>
+                            onChange={handleChange} className="form-control">
                             {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                         </select>
                     </div>
                 </div>
 
                 <div className="form-row">
+                    <div className="form-group">
+                        <label className="form-label">Location *</label>
+                        <input
+                            type="text"
+                            name="location"
+                            value={formData.location}
+                            onChange={handleChange}
+                            className="form-control"
+                            placeholder="e.g. Scrap Yard, Workshop 3"
+                            required
+                        />
+                    </div>
                     <div className="form-group">
                         <label className="form-label">Returned By *</label>
                         <input type="text" name="returnedBy" value={formData.returnedBy}

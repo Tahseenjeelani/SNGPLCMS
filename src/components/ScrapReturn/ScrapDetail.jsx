@@ -87,6 +87,10 @@ const ScrapDetail = () => {
                         <span className="value">{scrap.quantity} {scrap.unit}</span>
                     </div>
                     <div>
+                        <span className="label">Location</span>
+                        <span className="value">{scrap.location || '—'}</span>
+                    </div>
+                    <div>
                         <span className="label">Returned By</span>
                         <span className="value">{scrap.returnedBy}</span>
                     </div>

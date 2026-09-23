@@ -87,11 +87,27 @@ const IssueDetail = () => {
                         <span className="value">{issue.quantity} {issue.unit}</span>
                     </div>
                     <div>
-                        <span className="label">Issued To</span>
+                        <span className="label">Transaction Type</span>
+                        <span className="value">
+                            <span className={`badge ${issue.isSiteReturn ? 'badge-success' : 'badge-info'}`}>
+                                {issue.isSiteReturn ? 'Site Return (Stock Added)' : 'Issue Out (Stock Deducted)'}
+                            </span>
+                        </span>
+                    </div>
+                    <div>
+                        <span className="label">Station</span>
+                        <span className="value">{issue.station || '—'}</span>
+                    </div>
+                    <div>
+                        <span className="label">Location</span>
+                        <span className="value">{issue.location || '—'}</span>
+                    </div>
+                    <div>
+                        <span className="label">Issued To / Returned By</span>
                         <span className="value">{issue.issuedTo}</span>
                     </div>
                     <div>
-                        <span className="label">Issued By</span>
+                        <span className="label">Store Keeper</span>
                         <span className="value">{issue.issuedBy || '-'}</span>
                     </div>
                 </div>

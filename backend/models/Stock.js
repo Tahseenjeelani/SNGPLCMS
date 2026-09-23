@@ -25,6 +25,7 @@ const stockSchema = new mongoose.Schema({
         remarks: String
     }],
     lastUpdated: { type: Date, default: Date.now },
+    lastVerifiedDate: Date,
     createdBy: String,
     createdAt: { type: Date, default: Date.now },
     modifiedBy: String,

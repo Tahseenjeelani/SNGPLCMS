@@ -118,6 +118,7 @@ const ScrapList = () => {
                                 <th>Date</th>
                                 <th>Section</th>
                                 <th>Item</th>
+                                <th>Location</th>
                                 <th>Quantity</th>
                                 <th>Returned By</th>
                                 <th>Source Document</th>
@@ -127,7 +128,7 @@ const ScrapList = () => {
                         <tbody>
                             {filteredScraps.length === 0 ? (
                                 <tr>
-                                    <td colSpan="8" className="empty-state">
+                                    <td colSpan="9" className="empty-state">
                                         No scrap records found
                                     </td>
                                 </tr>
@@ -147,6 +148,7 @@ const ScrapList = () => {
                                             </span>
                                         </td>
                                         <td>{scrap.itemName}</td>
+                                        <td>{scrap.location || '—'}</td>
                                         <td>{scrap.quantity} {scrap.unit}</td>
                                         <td>{scrap.returnedBy}</td>
                                         <td>

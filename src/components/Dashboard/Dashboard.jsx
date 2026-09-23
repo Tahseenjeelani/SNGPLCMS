@@ -5,12 +5,7 @@ import {
     FaExchangeAlt,
     FaShoppingCart,
     FaTrash,
-    FaBoxes,
-    FaExclamationTriangle,
-    FaCheckCircle,
-    FaClock,
-    FaArrowUp,
-    FaArrowDown
+    FaBoxes
 } from 'react-icons/fa';
 import {
     BarChart,
@@ -23,10 +18,9 @@ import {
     PieChart,
     Pie,
     Cell,
-    LineChart,
-    Line,
+    AreaChart,
     Area,
-    AreaChart
+    ResponsiveContainer
 } from 'recharts';
 import './Dashboard.css';
 
@@ -73,8 +67,8 @@ const Dashboard = () => {
             // Stats
             setStats({
                 totalComplaints: complaints.length,
-                pendingComplaints: complaints.filter(c => c.status !== 'COMPLETED' && c.status !== 'CLOSED').length,
-                completedComplaints: complaints.filter(c => c.status === 'COMPLETED' || c.status === 'CLOSED').length,
+                pendingComplaints: complaints.filter(c => c.status !== 'Completed' && c.status !== 'COMPLETED' && c.status !== 'CLOSED').length,
+                completedComplaints: complaints.filter(c => c.status === 'Completed' || c.status === 'COMPLETED' || c.status === 'CLOSED').length,
                 totalIssues: issues.length,
                 activeIssues: issues.filter(i => i.isActive !== false).length,
                 totalPurchases: purchases.length,
@@ -84,18 +78,14 @@ const Dashboard = () => {
                 criticalStockItems: stock.filter(s => s.status === 'CRITICAL').length
             });
 
-            // Complaint Status Distribution
-            const statusCount = {};
-            complaints.forEach(c => {
-                statusCount[c.status] = (statusCount[c.status] || 0) + 1;
-            });
-            setComplaintStatusData(
-                Object.entries(statusCount).map(([name, value]) => ({
-                    name,
-                    value,
-                    color: getStatusColor(name)
-                }))
-            );
+            // Complaint Status Distribution (Green = Completed, Red = Open)
+            const completedCount = complaints.filter(c => c.status === 'Completed' || c.status === 'COMPLETED' || c.status === 'CLOSED').length;
+            const openCount = complaints.filter(c => c.status === 'Open' || c.status === 'NEW' || c.status === 'ASSIGNED' || c.status === 'IN_PROGRESS' || c.status === 'ON_HOLD').length;
+
+            setComplaintStatusData([
+                { name: 'Completed', value: completedCount, color: '#059669' },
+                { name: 'Open', value: openCount, color: '#DC2626' }
+            ]);
 
             // Trade Section Distribution
             const sectionCount = {};
@@ -134,8 +124,8 @@ const Dashboard = () => {
 
                 purchases.forEach(purchase => {
                     if (purchase.purchaseDate === dateStr && purchase.addedToStock) {
-                        purchase.items.forEach(item => {
-                            if (item.isStoreItem) {
+                        (purchase.items || []).forEach(item => {
+                            if (item.isStoreStockItem || item.isStoreItem) {
                                 totalPurchased += item.quantity || 0;
                             }
                         });
@@ -143,7 +133,7 @@ const Dashboard = () => {
                 });
 
                 trendData.push({
-                    date: dateStr,
+                    date: dateStr.slice(5), // MM-DD
                     issued: totalIssued,
                     purchased: totalPurchased
                 });
@@ -158,10 +148,10 @@ const Dashboard = () => {
                     id: c.id,
                     type: 'COMPLAINT',
                     title: `Complaint ${c.id}`,
-                    description: `${c.location} - ${c.indenter}`,
+                    description: `${c.location || ''} - ${c.indenter || ''}`,
                     status: c.status,
-                    timestamp: c.createdAt,
-                    color: getStatusColor(c.status)
+                    timestamp: c.createdAt || new Date().toISOString(),
+                    color: c.status === 'Completed' || c.status === 'COMPLETED' ? '#059669' : '#DC2626'
                 });
             });
 
@@ -171,8 +161,8 @@ const Dashboard = () => {
                     type: 'ISSUE',
                     title: `Issue ${i.irNo}`,
                     description: `${i.itemName} (${i.quantity} ${i.unit})`,
-                    status: i.isActive ? 'Active' : 'Inactive',
-                    timestamp: i.createdAt,
+                    status: i.isActive !== false ? 'Active' : 'Inactive',
+                    timestamp: i.createdAt || new Date().toISOString(),
                     color: '#2563EB'
                 });
             });
@@ -182,9 +172,9 @@ const Dashboard = () => {
                     id: p.cpNo,
                     type: 'PURCHASE',
                     title: `Purchase ${p.cpNo}`,
-                    description: `PKR ${p.totalAmount} - ${p.tradeSection}`,
-                    status: p.addedToStock ? 'Added to Stock' : 'Consumable',
-                    timestamp: p.createdAt,
+                    description: `PKR ${p.totalAmount || 0} - ${p.tradeSection || ''}`,
+                    status: p.addedToStock ? 'Added to Stock' : 'Direct Expense',
+                    timestamp: p.createdAt || new Date().toISOString(),
                     color: '#059669'
                 });
             });
@@ -199,19 +189,6 @@ const Dashboard = () => {
         }
     };
 
-    const getStatusColor = (status) => {
-        const colors = {
-            'NEW': '#6B7280',
-            'ASSIGNED': '#2563EB',
-            'IN_PROGRESS': '#D97706',
-            'ON_HOLD': '#9CA3AF',
-            'COMPLETED': '#059669',
-            'VERIFIED': '#7C3AED',
-            'CLOSED': '#1F2937'
-        };
-        return colors[status] || '#6B7280';
-    };
-
     const getTradeColor = (section) => {
         const colors = {
             'MASONRY': '#8B6914',
@@ -222,8 +199,6 @@ const Dashboard = () => {
         return colors[section] || '#6B7280';
     };
 
-    const COLORS = ['#2563EB', '#D97706', '#059669', '#DC2626', '#7C3AED', '#6B7280', '#8B6914'];
-
     if (loading) {
         return <div className="dashboard-loading">Loading dashboard...</div>;
     }
@@ -232,21 +207,17 @@ const Dashboard = () => {
         <div className="dashboard">
             <div className="page-header">
                 <h1 className="page-title">Dashboard</h1>
-                <div className="page-actions">
-                    <button className="btn btn-outline btn-sm" onClick={loadDashboardData}>
-                        Refresh
-                    </button>
-                </div>
+                {/* Refresh button removed as requested */}
             </div>
 
-            {/* Main Navigation */}
+            {/* Main Navigation (Height increased 1.5x via CSS) */}
             <div className="stats-grid">
                 <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/complaints')}>
                     <div className="stat-icon blue">
                         <FaClipboardList />
                     </div>
                     <div className="stat-content">
-                        <div className="stat-label" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>Complaints</div>
+                        <div className="stat-label" style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#1f2937' }}>Complaints</div>
                         <div className="stat-sub text-gray">Manage and view all complaints</div>
                     </div>
                 </div>
@@ -256,7 +227,7 @@ const Dashboard = () => {
                         <FaExchangeAlt />
                     </div>
                     <div className="stat-content">
-                        <div className="stat-label" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>Issue Register</div>
+                        <div className="stat-label" style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#1f2937' }}>Issue Register</div>
                         <div className="stat-sub text-gray">Materials issued from store</div>
                     </div>
                 </div>
@@ -266,18 +237,8 @@ const Dashboard = () => {
                         <FaShoppingCart />
                     </div>
                     <div className="stat-content">
-                        <div className="stat-label" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>Cash Purchase Register</div>
+                        <div className="stat-label" style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#1f2937' }}>Cash Purchase</div>
                         <div className="stat-sub text-gray">Market purchases & stock addition</div>
-                    </div>
-                </div>
-
-                <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/stock')}>
-                    <div className="stat-icon purple">
-                        <FaBoxes />
-                    </div>
-                    <div className="stat-content">
-                        <div className="stat-label" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>Stock Register</div>
-                        <div className="stat-sub text-gray">View current inventory status</div>
                     </div>
                 </div>
 
@@ -286,77 +247,89 @@ const Dashboard = () => {
                         <FaTrash />
                     </div>
                     <div className="stat-content">
-                        <div className="stat-label" style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1f2937' }}>Scrap Register</div>
+                        <div className="stat-label" style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#1f2937' }}>Scrap Return</div>
                         <div className="stat-sub text-gray">Returned materials & scrap items</div>
+                    </div>
+                </div>
+
+                <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/stock')}>
+                    <div className="stat-icon purple">
+                        <FaBoxes />
+                    </div>
+                    <div className="stat-content">
+                        <div className="stat-label" style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#1f2937' }}>Stock Register</div>
+                        <div className="stat-sub text-gray">View current inventory status</div>
                     </div>
                 </div>
             </div>
 
-            {/* Charts */}
-            <div className="charts-grid">
+            {/* Charts - 3 graphs aligned side-by-side in one row */}
+            <div className="charts-grid-three">
                 <div className="chart-card">
                     <h3>Complaint Status Distribution</h3>
-                    <div className="chart-container">
-                        <PieChart width={300} height={250}>
-                            <Pie
-                                data={complaintStatusData}
-                                cx={150}
-                                cy={125}
-                                innerRadius={60}
-                                outerRadius={100}
-                                paddingAngle={2}
-                                dataKey="value"
-                            >
-                                {complaintStatusData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                        </PieChart>
+                    <div className="chart-container pie-center">
+                        <ResponsiveContainer width="100%" height={240}>
+                            <PieChart>
+                                <Pie
+                                    data={complaintStatusData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={50}
+                                    outerRadius={85}
+                                    paddingAngle={3}
+                                    dataKey="value"
+                                >
+                                    {complaintStatusData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                                <Legend verticalAlign="bottom" height={36} />
+                            </PieChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
 
                 <div className="chart-card">
                     <h3>Work Distribution by Trade</h3>
                     <div className="chart-container">
-                        <BarChart
-                            width={400}
-                            height={250}
-                            data={tradeSectionData}
-                            layout="vertical"
-                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis type="number" />
-                            <YAxis type="category" dataKey="name" />
-                            <Tooltip />
-                            <Bar dataKey="value" fill="#2563EB">
-                                {tradeSectionData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                            </Bar>
-                        </BarChart>
+                        <ResponsiveContainer width="100%" height={240}>
+                            <BarChart
+                                data={tradeSectionData}
+                                layout="vertical"
+                                margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis type="number" />
+                                <YAxis type="category" dataKey="name" width={75} />
+                                <Tooltip />
+                                <Bar dataKey="value" fill="#2563EB">
+                                    {tradeSectionData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
 
-                <div className="chart-card full-width">
+                <div className="chart-card">
                     <h3>Stock Activity (Last 7 Days)</h3>
                     <div className="chart-container">
-                        <AreaChart
-                            width={800}
-                            height={250}
-                            data={stockTrendData}
-                            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="date" />
-                            <YAxis />
-                            <Tooltip />
-                            <Legend />
-                            <Area type="monotone" dataKey="issued" stackId="1" stroke="#DC2626" fill="#DC2626" fillOpacity={0.3} />
-                            <Area type="monotone" dataKey="purchased" stackId="1" stroke="#059669" fill="#059669" fillOpacity={0.3} />
-                        </AreaChart>
+                        <ResponsiveContainer width="100%" height={240}>
+                            <AreaChart
+                                data={stockTrendData}
+                                margin={{ top: 10, right: 15, left: -20, bottom: 0 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="date" />
+                                <YAxis />
+                                <Tooltip />
+                                <Legend />
+                                <Area type="monotone" dataKey="issued" stackId="1" stroke="#DC2626" fill="#DC2626" fillOpacity={0.3} />
+                                <Area type="monotone" dataKey="purchased" stackId="1" stroke="#059669" fill="#059669" fillOpacity={0.3} />
+                            </AreaChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
             </div>

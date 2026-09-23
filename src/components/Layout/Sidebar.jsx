@@ -46,6 +46,8 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                     <NavLink
                         key={item.path}
                         to={item.path}
+                        title={!isOpen ? item.label : ''}
+                        data-tooltip={item.label}
                         className={({ isActive }) =>
                             `nav-item ${isActive ? 'active' : ''}`
                         }

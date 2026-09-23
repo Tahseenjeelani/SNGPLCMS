@@ -121,6 +121,8 @@ router.post('/', async (req, res) => {
             complaintDate: req.body.complaintDate,
             description: req.body.description,
             complainant: req.body.complainant,
+            station: req.body.station || '',
+            location: req.body.location || '',
             status: 'Open',
             remarks: req.body.remarks || '',
             createdBy: 'Admin',
@@ -153,6 +155,8 @@ router.put('/:id', async (req, res) => {
         complaint.complaintDate = req.body.complaintDate || complaint.complaintDate;
         complaint.description = req.body.description || complaint.description;
         complaint.complainant = req.body.complainant || complaint.complainant;
+        complaint.station = req.body.station !== undefined ? req.body.station : complaint.station;
+        complaint.location = req.body.location !== undefined ? req.body.location : complaint.location;
         complaint.status = req.body.status || complaint.status;
         complaint.remarks = req.body.remarks !== undefined ? req.body.remarks : complaint.remarks;
         complaint.modifiedBy = 'Admin';

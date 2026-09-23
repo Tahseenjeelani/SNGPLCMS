@@ -156,12 +156,12 @@ const PurchaseList = () => {
                                         </td>
                                         <td>PKR {(purchase.totalAmount || 0).toLocaleString()}</td>
                                         <td>
-                                            {purchase.isStoreStockItem ? (
+                                            {purchase.isStoreStockItem || (purchase.items || []).some(i => i.isStoreStockItem) ? (
                                                 <span className="badge badge-success">
                                                     <FaBoxes /> Store Stock
                                                 </span>
                                             ) : (
-                                                <span className="badge badge-secondary">Consumable</span>
+                                                <span className="badge badge-secondary">Direct Expense</span>
                                             )}
                                         </td>
                                         <td>

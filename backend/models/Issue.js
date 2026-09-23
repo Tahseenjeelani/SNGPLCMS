@@ -12,6 +12,9 @@ const issueSchema = new mongoose.Schema({
     description: String,
     issuedTo: { type: String, required: true },
     issuedBy: String,
+    station: { type: String },
+    location: { type: String },
+    isSiteReturn: { type: Boolean, default: false },
     // Flat single source document (one per entry)
     sourceDocType: {
         type: String,

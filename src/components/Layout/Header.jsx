@@ -7,9 +7,6 @@ const Header = ({ toggleSidebar }) => {
     return (
         <header className="header">
             <div className="header-left">
-                <button className="menu-btn" onClick={toggleSidebar}>
-                    <FaBars />
-                </button>
             </div>
 
             <div className="header-right">

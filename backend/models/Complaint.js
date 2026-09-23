@@ -6,6 +6,8 @@ const complaintSchema = new mongoose.Schema({
     complaintDate: { type: Date, required: true },
     description: { type: String, required: true },
     complainant: { type: String, required: true },
+    station: { type: String },
+    location: { type: String },
     status: {
         type: String,
         enum: ['Open', 'Completed'],

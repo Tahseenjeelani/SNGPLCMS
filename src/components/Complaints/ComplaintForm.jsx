@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FaSave, FaTimes } from 'react-icons/fa';
-import { COMPLAINT_STATUSES } from '../../data/preDefinedLists';
+import { COMPLAINT_STATUSES, STATIONS } from '../../data/preDefinedLists';
 import { api } from '../../services/api';
 
 const ComplaintForm = () => {
@@ -14,6 +14,8 @@ const ComplaintForm = () => {
         complaintDate: new Date().toISOString().split('T')[0],
         description: '',
         complainant: '',
+        station: STATIONS[0] || 'Head Office Lahore',
+        location: '',
         status: 'Open',
         remarks: ''
     });
@@ -38,6 +40,8 @@ const ComplaintForm = () => {
                         : new Date().toISOString().split('T')[0],
                     description: complaint.description || '',
                     complainant: complaint.complainant || '',
+                    station: complaint.station || STATIONS[0],
+                    location: complaint.location || '',
                     status: complaint.status || 'Open',
                     remarks: complaint.remarks || ''
                 });
@@ -56,6 +60,8 @@ const ComplaintForm = () => {
                         : new Date().toISOString().split('T')[0],
                     description: complaint.description || '',
                     complainant: complaint.complainant || '',
+                    station: complaint.station || STATIONS[0],
+                    location: complaint.location || '',
                     status: complaint.status || 'Open',
                     remarks: complaint.remarks || ''
                 });
@@ -182,6 +188,35 @@ const ComplaintForm = () => {
                             onChange={handleChange}
                             className="form-control"
                             placeholder="Name of person / department"
+                            required
+                        />
+                    </div>
+                </div>
+
+                <div className="form-row">
+                    <div className="form-group">
+                        <label className="form-label">Station *</label>
+                        <select
+                            name="station"
+                            value={formData.station}
+                            onChange={handleChange}
+                            className="form-control"
+                            required
+                        >
+                            {STATIONS.map(st => (
+                                <option key={st} value={st}>{st}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">Location *</label>
+                        <input
+                            type="text"
+                            name="location"
+                            value={formData.location}
+                            onChange={handleChange}
+                            className="form-control"
+                            placeholder="e.g. Executive Block, Room 204"
                             required
                         />
                     </div>

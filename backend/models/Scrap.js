@@ -12,6 +12,7 @@ const scrapSchema = new mongoose.Schema({
     description: String,
     returnedBy: { type: String, required: true },
     receivedBy: String,
+    location: { type: String },
     // Flat single source document (one per entry)
     sourceDocType: {
         type: String,

@@ -146,8 +146,8 @@ const PurchaseDetail = () => {
                                     <td>PKR {item.unitPrice}</td>
                                     <td>PKR {item.total}</td>
                                     <td>
-                                        {item.isStoreItem ? (
-                                            <span className="badge badge-success">Store Item</span>
+                                        {item.isStoreStockItem || item.isStoreItem || purchase.isStoreStockItem ? (
+                                            <span className="badge badge-success">Store Stock Item</span>
                                         ) : (
                                             <span className="badge badge-secondary">Direct Expense</span>
                                         )}

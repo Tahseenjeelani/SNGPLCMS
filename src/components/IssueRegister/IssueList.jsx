@@ -41,6 +41,8 @@ const IssueList = () => {
                 (i.irNo || '').toLowerCase().includes(term) ||
                 (i.itemName || '').toLowerCase().includes(term) ||
                 (i.issuedTo || '').toLowerCase().includes(term) ||
+                (i.station || '').toLowerCase().includes(term) ||
+                (i.location || '').toLowerCase().includes(term) ||
                 (i.sourceDocType || '').toLowerCase().includes(term) ||
                 (i.sourceReference || '').toLowerCase().includes(term)
             );
@@ -111,7 +113,7 @@ const IssueList = () => {
                         <FaSearch className="search-icon" />
                         <input
                             type="text"
-                            placeholder="Search by IR#, item, issued to, source doc..."
+                            placeholder="Search by IR#, item, station, location, issued to..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="search-input"
@@ -141,8 +143,10 @@ const IssueList = () => {
                                 <th>Date</th>
                                 <th>Section</th>
                                 <th>Item</th>
+                                <th>Station / Location</th>
                                 <th>Quantity</th>
                                 <th>Issued To</th>
+                                <th>Type</th>
                                 <th>Source Document</th>
                                 <th>Actions</th>
                             </tr>
@@ -150,7 +154,7 @@ const IssueList = () => {
                         <tbody>
                             {filteredIssues.length === 0 ? (
                                 <tr>
-                                    <td colSpan="8" className="empty-state">No issues found</td>
+                                    <td colSpan="10" className="empty-state">No issues found</td>
                                 </tr>
                             ) : (
                                 filteredIssues.map((issue) => (
@@ -163,8 +167,17 @@ const IssueList = () => {
                                             </span>
                                         </td>
                                         <td>{issue.itemName}</td>
+                                        <td>
+                                            <div style={{ fontWeight: '500', color: '#1f2937' }}>{issue.station || '—'}</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{issue.location || ''}</div>
+                                        </td>
                                         <td>{issue.quantity} {issue.unit}</td>
                                         <td>{issue.issuedTo}</td>
+                                        <td>
+                                            <span className={`badge ${issue.isSiteReturn ? 'badge-success' : 'badge-info'}`} style={{ fontSize: '0.7rem' }}>
+                                                {issue.isSiteReturn ? '↩ Site Return (+Stock)' : 'Issue (-Stock)'}
+                                            </span>
+                                        </td>
                                         <td>
                                             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                                 <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>

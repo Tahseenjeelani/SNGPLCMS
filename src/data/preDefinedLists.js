@@ -33,20 +33,33 @@ export const COMPLAINT_STATUSES = [
     { value: 'Completed', label: 'Completed' }
 ];
 
+export const STATIONS = [
+    'Head Office Lahore',
+    'Lahore Region',
+    'Faisalabad Region',
+    'Multan Region',
+    'Gujranwala Region',
+    'Sahiwal Region',
+    'Sheikhupura Region',
+    'Islamabad Region',
+    'Sargodha Region',
+    'Bahawalpur Region',
+    'Rawalpindi Region',
+    'Peshawar Region',
+    'Gujrat Region'
+];
+
 export const EXPENSE_HEADS = [
-    'Maintenance Materials',
-    'Spare Parts',
-    'Consumables',
-    'Tools & Equipment',
-    'Safety Equipment',
-    'Plumbing Materials',
-    'Electrical Materials',
-    'Painting Materials',
-    'Carpentry Materials',
-    'Masonry Materials',
-    'HSE Supplies',
-    'Office Maintenance',
-    'Other'
+    '561',
+    '562',
+    '563',
+    '565',
+    '571',
+    '581',
+    '582',
+    '575',
+    '598',
+    '930'
 ];
 
 // Helpers

@@ -12,7 +12,8 @@ const purchaseSchema = new mongoose.Schema({
         unit: { type: String, enum: ['Bags', 'Kg', 'Pieces', 'Liters', 'Meters', 'Cft', 'Tins', 'Rolls'] },
         unitPrice: Number,
         total: Number,
-        description: String
+        description: String,
+        isStoreStockItem: { type: Boolean, default: false }
     }],
     totalAmount: Number,
     purchasedBy: { type: String, required: true },

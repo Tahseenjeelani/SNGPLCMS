@@ -89,7 +89,8 @@ router.post('/', async (req, res) => {
                 unit: item.unit,
                 unitPrice: item.unitPrice,
                 total: item.total || (item.quantity * item.unitPrice),
-                description: item.description || ''
+                description: item.description || '',
+                isStoreStockItem: !!item.isStoreStockItem
             })),
             totalAmount,
             purchasedBy: req.body.purchasedBy,

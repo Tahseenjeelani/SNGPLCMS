@@ -174,6 +174,14 @@ const ComplaintDetail = () => {
                         <span className="value">{formatDate(complaint.complaintDate)}</span>
                     </div>
                     <div>
+                        <span className="label">Station</span>
+                        <span className="value">{complaint.station || '—'}</span>
+                    </div>
+                    <div>
+                        <span className="label">Location</span>
+                        <span className="value">{complaint.location || '—'}</span>
+                    </div>
+                    <div>
                         <span className="label">Complainant</span>
                         <span className="value">{complaint.complainant || '—'}</span>
                     </div>

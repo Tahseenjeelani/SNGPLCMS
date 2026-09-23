@@ -39,6 +39,8 @@ const ComplaintList = () => {
             filtered = filtered.filter(c =>
                 (c.id || '').toLowerCase().includes(term) ||
                 (c.complainant || '').toLowerCase().includes(term) ||
+                (c.station || '').toLowerCase().includes(term) ||
+                (c.location || '').toLowerCase().includes(term) ||
                 (c.description || '').toLowerCase().includes(term)
             );
         }
@@ -104,7 +106,7 @@ const ComplaintList = () => {
                         <FaSearch className="search-icon" />
                         <input
                             type="text"
-                            placeholder="Search by ID, complainant, or description..."
+                            placeholder="Search by ID, station, location, complainant, or description..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="search-input"
@@ -131,6 +133,7 @@ const ComplaintList = () => {
                             <tr>
                                 <th>Complaint #</th>
                                 <th>Date</th>
+                                <th>Station / Location</th>
                                 <th>Complainant</th>
                                 <th>Description</th>
                                 <th>Status</th>
@@ -140,13 +143,17 @@ const ComplaintList = () => {
                         <tbody>
                             {filteredComplaints.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="empty-state">No complaints found</td>
+                                    <td colSpan="7" className="empty-state">No complaints found</td>
                                 </tr>
                             ) : (
                                 filteredComplaints.map((complaint) => (
                                     <tr key={complaint.id}>
                                         <td><strong>{complaint.id}</strong></td>
                                         <td>{formatDate(complaint.complaintDate)}</td>
+                                        <td>
+                                            <div style={{ fontWeight: '500', color: '#1f2937' }}>{complaint.station || '—'}</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{complaint.location || ''}</div>
+                                        </td>
                                         <td>{complaint.complainant || '—'}</td>
                                         <td style={{ maxWidth: '260px' }}>
                                             <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

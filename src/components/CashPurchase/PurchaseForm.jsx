@@ -17,21 +17,23 @@ const PurchaseForm = () => {
         items: [],
         purchasedBy: '',
         jobNo: '',
-        expenseHead: 'Maintenance Materials',
-        isStoreStockItem: false,
+        expenseHead: EXPENSE_HEADS[0] || '561',
         sourceDocType: 'COMPLAINT',
         sourceReference: '',
         remarks: ''
     });
 
     const [newItem, setNewItem] = useState({
+        selectedStockId: '',
         itemName: '',
         quantity: 1,
         unit: 'Pieces',
         unitPrice: 0,
+        isStoreStockItem: true,
         description: ''
     });
 
+    const [allStockItems, setAllStockItems] = useState([]);
     const [openComplaints, setOpenComplaints] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -39,9 +41,57 @@ const PurchaseForm = () => {
     const sourceConfig = getSourceDocConfig(formData.sourceDocType);
 
     useEffect(() => {
+        loadStockItems();
         loadOpenComplaints();
         if (isEdit) loadPurchase();
     }, [id]);
+
+    const loadStockItems = () => {
+        try {
+            const data = JSON.parse(localStorage.getItem('snglData')) || {};
+            const issues = (data.issues || []).filter(i => i.isActive !== false);
+            const purchases = (data.purchases || []).filter(p => p.isActive !== false);
+            const manualStocks = (data.manualStocks || []);
+
+            const itemMap = {};
+
+            purchases.forEach(p => {
+                const trade = p.tradeSection || 'MASONRY';
+                (p.items || []).forEach(item => {
+                    const name = (item.itemName || '').trim();
+                    if (!name) return;
+                    const key = `${trade}_${name.toLowerCase()}`;
+                    if (!itemMap[key]) {
+                        itemMap[key] = { itemId: key, itemName: name, tradeSection: trade, unit: item.unit || 'Pieces' };
+                    }
+                });
+            });
+
+            manualStocks.forEach(m => {
+                const trade = m.tradeSection || 'MASONRY';
+                const name = (m.itemName || '').trim();
+                if (!name) return;
+                const key = `${trade}_${name.toLowerCase()}`;
+                if (!itemMap[key]) {
+                    itemMap[key] = { itemId: key, itemName: name, tradeSection: trade, unit: m.unit || 'Pieces' };
+                }
+            });
+
+            issues.forEach(iss => {
+                const trade = iss.tradeSection || 'MASONRY';
+                const name = (iss.itemName || '').trim();
+                if (!name) return;
+                const key = `${trade}_${name.toLowerCase()}`;
+                if (!itemMap[key]) {
+                    itemMap[key] = { itemId: key, itemName: name, tradeSection: trade, unit: iss.unit || 'Pieces' };
+                }
+            });
+
+            setAllStockItems(Object.values(itemMap));
+        } catch (e) {
+            console.error('Error loading stock items:', e);
+        }
+    };
 
     const loadOpenComplaints = useCallback(async () => {
         try {
@@ -73,16 +123,21 @@ const PurchaseForm = () => {
             purchaseDate: p.purchaseDate ? new Date(p.purchaseDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             tradeSection: p.tradeSection || 'MASONRY',
             billInvoiceNo: p.billInvoiceNo || '',
-            items: p.items || [],
+            items: (p.items || []).map(item => ({
+                ...item,
+                isStoreStockItem: item.isStoreStockItem !== undefined ? item.isStoreStockItem : (p.isStoreStockItem || false)
+            })),
             purchasedBy: p.purchasedBy || '',
             jobNo: p.jobNo || '',
-            expenseHead: p.expenseHead || 'Maintenance Materials',
-            isStoreStockItem: !!p.isStoreStockItem,
+            expenseHead: p.expenseHead || EXPENSE_HEADS[0] || '561',
             sourceDocType: p.sourceDocType || 'COMPLAINT',
             sourceReference: p.sourceReference || '',
             remarks: p.remarks || ''
         });
     };
+
+    // Filter items for currently selected trade
+    const tradeStockItems = allStockItems.filter(s => s.tradeSection === formData.tradeSection);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -90,10 +145,34 @@ const PurchaseForm = () => {
             setFormData(prev => ({ ...prev, sourceDocType: value, sourceReference: '' }));
             return;
         }
+        if (name === 'tradeSection') {
+            setFormData(prev => ({ ...prev, tradeSection: value }));
+            setNewItem({ selectedStockId: '', itemName: '', quantity: 1, unit: 'Pieces', unitPrice: 0, isStoreStockItem: true, description: '' });
+            return;
+        }
         setFormData(prev => ({
             ...prev,
             [name]: type === 'checkbox' ? checked : value
         }));
+    };
+
+    const handleStockSelect = (e) => {
+        const val = e.target.value;
+        if (val === '__NEW__') {
+            setNewItem(prev => ({
+                ...prev,
+                selectedStockId: '__NEW__',
+                itemName: ''
+            }));
+        } else {
+            const found = tradeStockItems.find(s => s.itemId === val);
+            setNewItem(prev => ({
+                ...prev,
+                selectedStockId: val,
+                itemName: found ? found.itemName : '',
+                unit: found ? found.unit : prev.unit
+            }));
+        }
     };
 
     const handleAddItem = () => {
@@ -103,13 +182,29 @@ const PurchaseForm = () => {
         const total = Number(newItem.quantity) * Number(newItem.unitPrice);
         setFormData(prev => ({
             ...prev,
-            items: [...prev.items, { ...newItem, quantity: Number(newItem.quantity), unitPrice: Number(newItem.unitPrice), total }]
+            items: [...prev.items, {
+                itemName: newItem.itemName.trim(),
+                quantity: Number(newItem.quantity),
+                unit: newItem.unit,
+                unitPrice: Number(newItem.unitPrice),
+                total,
+                isStoreStockItem: newItem.isStoreStockItem,
+                description: newItem.description || ''
+            }]
         }));
-        setNewItem({ itemName: '', quantity: 1, unit: 'Pieces', unitPrice: 0, description: '' });
+        setNewItem({ selectedStockId: '', itemName: '', quantity: 1, unit: 'Pieces', unitPrice: 0, isStoreStockItem: true, description: '' });
     };
 
     const handleRemoveItem = (index) => {
         setFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
+    };
+
+    const handleToggleItemStoreStock = (index) => {
+        setFormData(prev => {
+            const updated = [...prev.items];
+            updated[index] = { ...updated[index], isStoreStockItem: !updated[index].isStoreStockItem };
+            return { ...prev, items: updated };
+        });
     };
 
     const totalAmount = formData.items.reduce((sum, i) => sum + (i.total || 0), 0);
@@ -132,8 +227,11 @@ const PurchaseForm = () => {
         if (validationError) { setError(validationError); return; }
 
         setLoading(true);
+        // Set top-level isStoreStockItem if ANY item is a store stock item (for backward compatibility)
+        const hasStoreStock = formData.items.some(i => i.isStoreStockItem);
         const payload = {
             ...formData,
+            isStoreStockItem: hasStoreStock,
             totalAmount,
             sourceReference: formData.sourceDocType === 'ROUTINE_WORK' ? '' : formData.sourceReference.trim()
         };
@@ -213,10 +311,10 @@ const PurchaseForm = () => {
                             onChange={handleChange} className="form-control" placeholder="Name / designation" required />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Expense Head</label>
+                        <label className="form-label">Expense Head *</label>
                         <select name="expenseHead" value={formData.expenseHead}
-                            onChange={handleChange} className="form-control">
-                            {EXPENSE_HEADS.map(h => <option key={h} value={h}>{h}</option>)}
+                            onChange={handleChange} className="form-control" required>
+                            {EXPENSE_HEADS.map(h => <option key={h} value={h}>Expense Head {h}</option>)}
                         </select>
                     </div>
                     <div className="form-group">
@@ -226,57 +324,71 @@ const PurchaseForm = () => {
                     </div>
                 </div>
 
-                {/* Store Stock Item Flag */}
-                <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: '600', color: '#166534' }}>
-                        <input
-                            type="checkbox"
-                            name="isStoreStockItem"
-                            checked={formData.isStoreStockItem}
-                            onChange={handleChange}
-                            style={{ width: '18px', height: '18px', accentColor: '#16a34a' }}
-                        />
-                        <FaBoxes />
-                        Mark as Store Stock Item
-                    </label>
-                    <p style={{ margin: '6px 0 0 28px', fontSize: '0.8rem', color: '#15803d' }}>
-                        When checked, this purchase feeds into the Stock Register automatically.
-                    </p>
-                </div>
-
                 {/* Items Section */}
                 <div className="items-section">
                     <h3>Items Purchased</h3>
-                    <div className="items-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '8px', alignItems: 'end', marginBottom: '8px' }}>
-                        <div>
-                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Item Name</label>
-                            <input type="text" placeholder="Item name" value={newItem.itemName}
-                                onChange={e => setNewItem(prev => ({ ...prev, itemName: e.target.value }))}
-                                className="form-control" />
+                    <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 0.8fr 0.8fr 1fr auto', gap: '10px', alignItems: 'end' }}>
+                            <div>
+                                <label className="form-label" style={{ fontSize: '0.75rem' }}>Select Trade Item</label>
+                                <select
+                                    value={newItem.selectedStockId}
+                                    onChange={handleStockSelect}
+                                    className="form-control"
+                                >
+                                    <option value="">-- Choose Trade Item --</option>
+                                    {tradeStockItems.map(s => (
+                                        <option key={s.itemId} value={s.itemId}>{s.itemName}</option>
+                                    ))}
+                                    <option value="__NEW__">+ Enter New Custom Item...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="form-label" style={{ fontSize: '0.75rem' }}>Item Name *</label>
+                                <input
+                                    type="text"
+                                    placeholder="Item name"
+                                    value={newItem.itemName}
+                                    onChange={e => setNewItem(prev => ({ ...prev, itemName: e.target.value }))}
+                                    className="form-control"
+                                />
+                            </div>
+                            <div>
+                                <label className="form-label" style={{ fontSize: '0.75rem' }}>Qty</label>
+                                <input type="number" min="1" value={newItem.quantity}
+                                    onChange={e => setNewItem(prev => ({ ...prev, quantity: Number(e.target.value) }))}
+                                    className="form-control" />
+                            </div>
+                            <div>
+                                <label className="form-label" style={{ fontSize: '0.75rem' }}>Unit</label>
+                                <select value={newItem.unit}
+                                    onChange={e => setNewItem(prev => ({ ...prev, unit: e.target.value }))}
+                                    className="form-control">
+                                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="form-label" style={{ fontSize: '0.75rem' }}>Unit Price (PKR)</label>
+                                <input type="number" min="0" step="0.01" value={newItem.unitPrice}
+                                    onChange={e => setNewItem(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
+                                    className="form-control" />
+                            </div>
+                            <button type="button" className="btn btn-primary" onClick={handleAddItem} style={{ marginBottom: 0 }}>
+                                <FaPlus /> Add
+                            </button>
                         </div>
-                        <div>
-                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Qty</label>
-                            <input type="number" min="1" value={newItem.quantity}
-                                onChange={e => setNewItem(prev => ({ ...prev, quantity: Number(e.target.value) }))}
-                                className="form-control" />
+
+                        <div style={{ marginTop: '10px' }}>
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', color: '#166534' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={newItem.isStoreStockItem}
+                                    onChange={e => setNewItem(prev => ({ ...prev, isStoreStockItem: e.target.checked }))}
+                                    style={{ accentColor: '#16a34a' }}
+                                />
+                                Add this item to Store Stock Register?
+                            </label>
                         </div>
-                        <div>
-                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Unit</label>
-                            <select value={newItem.unit}
-                                onChange={e => setNewItem(prev => ({ ...prev, unit: e.target.value }))}
-                                className="form-control">
-                                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="form-label" style={{ fontSize: '0.75rem' }}>Unit Price (PKR)</label>
-                            <input type="number" min="0" step="0.01" value={newItem.unitPrice}
-                                onChange={e => setNewItem(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
-                                className="form-control" />
-                        </div>
-                        <button type="button" className="btn btn-primary" onClick={handleAddItem} style={{ marginBottom: 0 }}>
-                            <FaPlus /> Add
-                        </button>
                     </div>
 
                     {formData.items.length > 0 && (
@@ -289,17 +401,29 @@ const PurchaseForm = () => {
                                         <th>Unit</th>
                                         <th>Unit Price</th>
                                         <th>Total</th>
-                                        <th></th>
+                                        <th style={{ textAlign: 'center' }}>Store Stock?</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {formData.items.map((item, idx) => (
                                         <tr key={idx}>
-                                            <td>{item.itemName}</td>
+                                            <td><strong>{item.itemName}</strong></td>
                                             <td>{item.quantity}</td>
                                             <td>{item.unit}</td>
                                             <td>PKR {item.unitPrice?.toLocaleString()}</td>
                                             <td><strong>PKR {item.total?.toLocaleString()}</strong></td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!item.isStoreStockItem}
+                                                        onChange={() => handleToggleItemStoreStock(idx)}
+                                                        style={{ accentColor: '#16a34a' }}
+                                                    />
+                                                    {item.isStoreStockItem ? 'Yes (+Stock)' : 'No'}
+                                                </label>
+                                            </td>
                                             <td>
                                                 <button type="button" className="btn btn-danger btn-sm"
                                                     onClick={() => handleRemoveItem(idx)}>
@@ -312,7 +436,7 @@ const PurchaseForm = () => {
                                 <tfoot>
                                     <tr>
                                         <td colSpan="4" style={{ textAlign: 'right', fontWeight: '600' }}>Total Amount:</td>
-                                        <td colSpan="2" style={{ fontWeight: '700', fontSize: '1rem' }}>
+                                        <td colSpan="3" style={{ fontWeight: '700', fontSize: '1rem', color: '#059669' }}>
                                             PKR {totalAmount.toLocaleString()}
                                         </td>
                                     </tr>

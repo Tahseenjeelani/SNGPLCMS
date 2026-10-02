@@ -14,18 +14,25 @@ const IssueDetail = () => {
         loadIssue();
     }, [id]);
 
-    const loadIssue = () => {
+    const loadIssue = async () => {
+        setLoading(true);
+        let found = null;
         try {
-            const data = JSON.parse(localStorage.getItem('snglData'));
-            if (data && data.issues) {
-                const found = data.issues.find(i => i.irNo === id);
-                setIssue(found || null);
+            found = await api.getIssue(id);
+        } catch (_) {}
+
+        if (!found || !found.irNo) {
+            try {
+                const data = JSON.parse(localStorage.getItem('snglData'));
+                if (data && data.issues) {
+                    found = data.issues.find(i => i.irNo === id);
+                }
+            } catch (error) {
+                console.error('Error loading issue:', error);
             }
-        } catch (error) {
-            console.error('Error loading issue:', error);
-        } finally {
-            setLoading(false);
         }
+        setIssue(found || null);
+        setLoading(false);
     };
 
     if (loading) {
@@ -45,6 +52,9 @@ const IssueDetail = () => {
             </div>
         );
     }
+
+    const issuedQty = issue.issuedQuantity !== undefined ? issue.issuedQuantity : (issue.isSiteReturn ? 0 : issue.quantity);
+    const returnQty = issue.returnQuantity !== undefined ? issue.returnQuantity : (issue.isSiteReturn ? issue.quantity : 0);
 
     return (
         <div className="page-container">
@@ -80,19 +90,23 @@ const IssueDetail = () => {
                     </div>
                     <div>
                         <span className="label">Item Name</span>
-                        <span className="value">{issue.itemName} ({issue.itemId})</span>
+                        <span className="value">{issue.itemName}</span>
                     </div>
                     <div>
-                        <span className="label">Quantity</span>
-                        <span className="value">{issue.quantity} {issue.unit}</span>
-                    </div>
-                    <div>
-                        <span className="label">Transaction Type</span>
-                        <span className="value">
-                            <span className={`badge ${issue.isSiteReturn ? 'badge-success' : 'badge-info'}`}>
-                                {issue.isSiteReturn ? 'Site Return (Stock Added)' : 'Issue Out (Stock Deducted)'}
-                            </span>
+                        <span className="label">Issued Quantity</span>
+                        <span className="value" style={{ color: '#dc2626', fontWeight: '600' }}>
+                            {issuedQty > 0 ? `-${issuedQty} ${issue.unit || ''}` : '—'}
                         </span>
+                    </div>
+                    <div>
+                        <span className="label">Return Quantity</span>
+                        <span className="value" style={{ color: '#059669', fontWeight: '600' }}>
+                            {returnQty > 0 ? `+${returnQty} ${issue.returnUnit || issue.unit || ''}` : '—'}
+                        </span>
+                    </div>
+                    <div>
+                        <span className="label">Vehicle No.</span>
+                        <span className="value">{issue.vehicleNo || '—'}</span>
                     </div>
                     <div>
                         <span className="label">Station</span>
@@ -103,7 +117,7 @@ const IssueDetail = () => {
                         <span className="value">{issue.location || '—'}</span>
                     </div>
                     <div>
-                        <span className="label">Issued To / Returned By</span>
+                        <span className="label">Issued To / Handed To</span>
                         <span className="value">{issue.issuedTo}</span>
                     </div>
                     <div>

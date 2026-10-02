@@ -14,18 +14,25 @@ const PurchaseDetail = () => {
         loadPurchase();
     }, [id]);
 
-    const loadPurchase = () => {
+    const loadPurchase = async () => {
+        setLoading(true);
+        let found = null;
         try {
-            const data = JSON.parse(localStorage.getItem('snglData'));
-            if (data && data.purchases) {
-                const found = data.purchases.find(p => p.cpNo === id);
-                setPurchase(found || null);
+            found = await api.getPurchase(id);
+        } catch (_) {}
+
+        if (!found || !found.cpNo) {
+            try {
+                const data = JSON.parse(localStorage.getItem('snglData'));
+                if (data && data.purchases) {
+                    found = data.purchases.find(p => p.cpNo === id);
+                }
+            } catch (error) {
+                console.error('Error loading purchase:', error);
             }
-        } catch (error) {
-            console.error('Error loading purchase:', error);
-        } finally {
-            setLoading(false);
         }
+        setPurchase(found || null);
+        setLoading(false);
     };
 
     if (loading) {
@@ -67,7 +74,7 @@ const PurchaseDetail = () => {
 
             <div className="card" style={{ marginBottom: '24px' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
-                    Purchase Details
+                    Section 1: Header Information
                 </h3>
                 <div className="detail-grid">
                     <div>
@@ -79,33 +86,41 @@ const PurchaseDetail = () => {
                         <span className="value">{new Date(purchase.purchaseDate).toLocaleDateString()}</span>
                     </div>
                     <div>
+                        <span className="label">Register Date</span>
+                        <span className="value">{purchase.registerDate ? new Date(purchase.registerDate).toLocaleDateString() : '—'}</span>
+                    </div>
+                    <div>
+                        <span className="label">Page No.</span>
+                        <span className="value">{purchase.pageNo || '—'}</span>
+                    </div>
+                    <div>
+                        <span className="label">Sr. No.</span>
+                        <span className="value">{purchase.srNo || '—'}</span>
+                    </div>
+                    <div>
                         <span className="label">Bill / Invoice No</span>
-                        <span className="value">{purchase.billInvoiceNo || '-'}</span>
+                        <span className="value">{purchase.billInvoiceNo || '—'}</span>
                     </div>
                     <div>
                         <span className="label">Purchased By</span>
                         <span className="value">{purchase.purchasedBy}</span>
                     </div>
                     <div>
+                        <span className="label">Employee / SN No.</span>
+                        <span className="value">{purchase.employeeSnNo || '—'}</span>
+                    </div>
+                    <div>
                         <span className="label">Job No</span>
-                        <span className="value">{purchase.jobNo || '-'}</span>
+                        <span className="value">{purchase.jobNo || '—'}</span>
                     </div>
                     <div>
                         <span className="label">Expense Head</span>
-                        <span className="value">{purchase.expenseHead || '-'}</span>
+                        <span className="value">{purchase.expenseHead || '—'}</span>
                     </div>
                     <div>
                         <span className="label">Total Amount</span>
-                        <span className="value" style={{ color: '#059669', fontWeight: '700' }}>PKR {purchase.totalAmount}</span>
-                    </div>
-                    <div>
-                        <span className="label">Stock Update</span>
-                        <span className="value">
-                            {purchase.addedToStock ? (
-                                <span className="badge badge-success"><FaBoxes /> Added to Stock</span>
-                            ) : (
-                                <span className="badge badge-secondary">Consumable</span>
-                            )}
+                        <span className="value" style={{ color: '#059669', fontWeight: '700' }}>
+                            PKR {(Number(purchase.totalAmount) || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 })}
                         </span>
                     </div>
                 </div>
@@ -113,7 +128,7 @@ const PurchaseDetail = () => {
                 {purchase.remarks && (
                     <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #f3f4f6' }}>
                         <span className="label" style={{ display: 'block', fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px' }}>
-                            Remarks
+                            Remarks (Section 3)
                         </span>
                         <p style={{ margin: 0, color: '#374151' }}>{purchase.remarks}</p>
                     </div>
@@ -123,31 +138,39 @@ const PurchaseDetail = () => {
             {/* Purchase Items */}
             <div className="card" style={{ marginBottom: '24px' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
-                    Purchased Items ({purchase.items ? purchase.items.length : 0})
+                    Section 2: Purchased Items ({purchase.items ? purchase.items.length : 0})
                 </h3>
                 <div className="table-responsive">
                     <table>
                         <thead>
                             <tr>
+                                <th>Trade</th>
                                 <th>Item Name</th>
                                 <th>Quantity</th>
-                                <th>Unit</th>
                                 <th>Unit Price</th>
                                 <th>Total Price</th>
+                                <th>Location</th>
+                                <th>Source Document</th>
                                 <th>Stock Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {purchase.items && purchase.items.map((item, idx) => (
                                 <tr key={idx}>
+                                    <td><span className="badge badge-info" style={{ fontSize: '0.7rem' }}>{item.tradeSection || purchase.tradeSection}</span></td>
                                     <td><strong>{item.itemName}</strong></td>
-                                    <td>{item.quantity}</td>
-                                    <td>{item.unit}</td>
+                                    <td>{item.quantity} {item.unit}</td>
                                     <td>PKR {item.unitPrice}</td>
-                                    <td>PKR {item.total}</td>
+                                    <td style={{ fontWeight: '700', color: '#059669' }}>PKR {(item.total || (item.quantity * item.unitPrice) || 0).toLocaleString()}</td>
+                                    <td>{item.location || '—'}</td>
                                     <td>
-                                        {item.isStoreStockItem || item.isStoreItem || purchase.isStoreStockItem ? (
-                                            <span className="badge badge-success">Store Stock Item</span>
+                                        <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>
+                                            {item.sourceDocType || purchase.sourceDocType}: {item.sourceReference || purchase.sourceReference || 'None'}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {item.isStoreStockItem || purchase.isStoreStockItem ? (
+                                            <span className="badge badge-success"><FaBoxes /> Store Stock Item</span>
                                         ) : (
                                             <span className="badge badge-secondary">Direct Expense</span>
                                         )}

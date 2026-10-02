@@ -40,17 +40,48 @@ router.get('/:id/links', async (req, res) => {
 
         const issues = await Issue.find({
             sourceDocType: 'COMPLAINT',
-            sourceReference: complaintId
+            sourceReference: complaintId,
+            isActive: { $ne: false }
         });
 
-        const purchases = await Purchase.find({
-            sourceDocType: 'COMPLAINT',
-            sourceReference: complaintId
+        const allPurchases = await Purchase.find({ isActive: { $ne: false } });
+        const linkedPurchases = [];
+        allPurchases.forEach(p => {
+            const isTopMatch = p.sourceDocType === 'COMPLAINT' && p.sourceReference === complaintId;
+            const matchingItems = (p.items || []).filter(item =>
+                (item.sourceDocType === 'COMPLAINT' && item.sourceReference === complaintId) || isTopMatch
+            );
+            if (matchingItems.length > 0) {
+                linkedPurchases.push({
+                    cpNo: p.cpNo,
+                    items: matchingItems.map(i => `${i.itemName} (${i.quantity} ${i.unit || ''})`),
+                    totalAmount: matchingItems.reduce((sum, i) => sum + (i.total || (i.quantity * i.unitPrice) || 0), 0),
+                    purchasedBy: p.purchasedBy,
+                    purchaseDate: p.purchaseDate,
+                    isStoreStockItem: matchingItems.some(i => i.isStoreStockItem)
+                });
+            }
         });
 
-        const scraps = await Scrap.find({
-            sourceDocType: 'COMPLAINT',
-            sourceReference: complaintId
+        const allScraps = await Scrap.find({ isActive: { $ne: false } });
+        const linkedScraps = [];
+        allScraps.forEach(s => {
+            const isTopMatch = s.sourceDocType === 'COMPLAINT' && s.sourceReference === complaintId;
+            const items = (s.items && s.items.length > 0) ? s.items : [s];
+            const matchingItems = items.filter(item =>
+                (item.sourceDocType === 'COMPLAINT' && item.sourceReference === complaintId) || isTopMatch
+            );
+            matchingItems.forEach(item => {
+                linkedScraps.push({
+                    srNo: s.srNo,
+                    itemName: item.itemName,
+                    quantity: item.quantity,
+                    unit: item.unit,
+                    returnedBy: s.returnedBy,
+                    date: s.date,
+                    tradeSection: item.tradeSection || s.tradeSection
+                });
+            });
         });
 
         res.json({
@@ -58,29 +89,14 @@ router.get('/:id/links', async (req, res) => {
             issues: issues.map(issue => ({
                 irNo: issue.irNo,
                 itemName: issue.itemName,
-                quantity: issue.quantity,
+                quantity: issue.issuedQuantity !== undefined ? issue.issuedQuantity : issue.quantity,
                 unit: issue.unit,
                 issuedTo: issue.issuedTo,
                 issueDate: issue.issueDate,
                 tradeSection: issue.tradeSection
             })),
-            purchases: purchases.map(purchase => ({
-                cpNo: purchase.cpNo,
-                items: (purchase.items || []).map(i => i.itemName),
-                totalAmount: purchase.totalAmount,
-                purchasedBy: purchase.purchasedBy,
-                purchaseDate: purchase.purchaseDate,
-                isStoreStockItem: purchase.isStoreStockItem
-            })),
-            scraps: scraps.map(scrap => ({
-                srNo: scrap.srNo,
-                itemName: scrap.itemName,
-                quantity: scrap.quantity,
-                unit: scrap.unit,
-                returnedBy: scrap.returnedBy,
-                date: scrap.date,
-                tradeSection: scrap.tradeSection
-            }))
+            purchases: linkedPurchases,
+            scraps: linkedScraps
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

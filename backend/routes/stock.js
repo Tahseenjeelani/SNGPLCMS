@@ -1,97 +1,122 @@
-// backend/routes/stock.js
-// Stock Register is READ-ONLY and COMPUTED.
-// It aggregates data from:
-//   1. All Issue Register entries (items issued from store)
-//   2. Cash Purchase entries where isStoreStockItem === true
-//
-// Net Stock per item = Total Purchased (store) - Total Issued
 const express = require('express');
 const router = express.Router();
 const Issue = require('../models/Issue');
 const Purchase = require('../models/Purchase');
+const Scrap = require('../models/Scrap');
 
 // GET /api/stock — computed aggregate view
 router.get('/', async (req, res) => {
     try {
-        // Fetch all issues
         const issues = await Issue.find({ isActive: { $ne: false } });
+        const purchases = await Purchase.find({ isActive: { $ne: false } });
+        const scraps = await Scrap.find({ isActive: { $ne: false } });
 
-        // Fetch only store-stock purchases
-        const purchases = await Purchase.find({
-            isStoreStockItem: true,
-            isActive: { $ne: false }
-        });
-
-        // Build stock map keyed by itemName (normalised to lowercase for grouping)
         const stockMap = {};
 
-        // Add incoming stock from store purchases
-        for (const purchase of purchases) {
-            for (const item of (purchase.items || [])) {
-                const key = (item.itemName || '').trim().toLowerCase();
-                if (!key) continue;
-                if (!stockMap[key]) {
-                    stockMap[key] = {
-                        itemName: item.itemName.trim(),
-                        unit: item.unit || '',
-                        totalPurchased: 0,
-                        totalIssued: 0,
-                        lastUnitPrice: 0,
-                        transactions: []
-                    };
-                }
-                stockMap[key].totalPurchased += Number(item.quantity) || 0;
-                stockMap[key].lastUnitPrice = item.unitPrice || stockMap[key].lastUnitPrice;
-                stockMap[key].transactions.push({
-                    type: 'PURCHASE',
-                    docNo: purchase.cpNo,
-                    date: purchase.purchaseDate,
-                    quantity: Number(item.quantity) || 0,
-                    sourceDocType: purchase.sourceDocType,
-                    sourceReference: purchase.sourceReference
-                });
-            }
-        }
-
-        // Subtract issued stock from issues
-        for (const issue of issues) {
-            const key = (issue.itemName || '').trim().toLowerCase();
-            if (!key) continue;
+        const getOrCreate = (name, trade, unit) => {
+            const key = (name || '').trim().toLowerCase();
+            if (!key) return null;
             if (!stockMap[key]) {
-                // Item appears in issues but not in any store purchase
                 stockMap[key] = {
-                    itemName: issue.itemName.trim(),
-                    unit: issue.unit || '',
+                    itemName: name.trim(),
+                    tradeSection: trade || 'MASONRY',
+                    unit: unit || 'Pieces',
                     totalPurchased: 0,
                     totalIssued: 0,
+                    totalReturn: 0,
                     lastUnitPrice: 0,
                     transactions: []
                 };
             }
-            stockMap[key].totalIssued += Number(issue.quantity) || 0;
-            if (issue.unit && !stockMap[key].unit) {
-                stockMap[key].unit = issue.unit;
+            return stockMap[key];
+        };
+
+        // 1. Store Stock Purchases
+        for (const purchase of purchases) {
+            for (const item of (purchase.items || [])) {
+                if (item.isStoreStockItem || purchase.isStoreStockItem) {
+                    const sItem = getOrCreate(item.itemName, item.tradeSection || purchase.tradeSection, item.unit);
+                    if (sItem) {
+                        const qty = Number(item.quantity) || 0;
+                        sItem.totalPurchased += qty;
+                        sItem.lastUnitPrice = item.unitPrice || sItem.lastUnitPrice;
+                        sItem.transactions.push({
+                            type: 'PURCHASE',
+                            docNo: purchase.cpNo,
+                            date: purchase.purchaseDate,
+                            quantity: qty,
+                            sourceDocType: item.sourceDocType || purchase.sourceDocType,
+                            sourceReference: item.sourceReference || purchase.sourceReference
+                        });
+                    }
+                }
             }
-            stockMap[key].transactions.push({
-                type: 'ISSUE',
-                docNo: issue.irNo,
-                date: issue.issueDate,
-                quantity: -(Number(issue.quantity) || 0),
-                sourceDocType: issue.sourceDocType,
-                sourceReference: issue.sourceReference
-            });
+        }
+
+        // 2. Issues & Returns
+        for (const issue of issues) {
+            const sItem = getOrCreate(issue.itemName, issue.tradeSection, issue.unit);
+            if (sItem) {
+                const issuedQty = Number(issue.issuedQuantity !== undefined ? issue.issuedQuantity : (issue.isSiteReturn ? 0 : issue.quantity)) || 0;
+                const returnQty = Number(issue.returnQuantity !== undefined ? issue.returnQuantity : (issue.isSiteReturn ? issue.quantity : 0)) || 0;
+
+                if (issuedQty > 0) {
+                    sItem.totalIssued += issuedQty;
+                    sItem.transactions.push({
+                        type: 'ISSUE',
+                        docNo: issue.irNo,
+                        date: issue.issueDate,
+                        quantity: -issuedQty,
+                        sourceDocType: issue.sourceDocType,
+                        sourceReference: issue.sourceReference
+                    });
+                }
+                if (returnQty > 0) {
+                    sItem.totalReturn += returnQty;
+                    sItem.transactions.push({
+                        type: 'SITE_RETURN',
+                        docNo: issue.irNo,
+                        date: issue.issueDate,
+                        quantity: returnQty,
+                        sourceDocType: issue.sourceDocType,
+                        sourceReference: issue.sourceReference
+                    });
+                }
+            }
+        }
+
+        // 3. Scrap Returns
+        for (const scrap of scraps) {
+            const items = (scrap.items && scrap.items.length > 0) ? scrap.items : [scrap];
+            for (const item of items) {
+                const sItem = getOrCreate(item.itemName, item.tradeSection || scrap.tradeSection, item.unit);
+                if (sItem) {
+                    const qty = Number(item.quantity) || 0;
+                    sItem.totalReturn += qty;
+                    sItem.transactions.push({
+                        type: 'SCRAP_RETURN',
+                        docNo: scrap.srNo,
+                        date: scrap.date,
+                        quantity: qty,
+                        sourceDocType: item.sourceDocType || scrap.sourceDocType,
+                        sourceReference: item.sourceReference || scrap.sourceReference
+                    });
+                }
+            }
         }
 
         // Convert map to sorted array
         const stockList = Object.values(stockMap).map(item => ({
             itemName: item.itemName,
+            tradeSection: item.tradeSection,
             unit: item.unit,
             totalPurchased: item.totalPurchased,
             totalIssued: item.totalIssued,
-            currentBalance: item.totalPurchased - item.totalIssued,
+            totalReturn: item.totalReturn,
+            currentBalance: (item.totalPurchased + item.totalReturn) - item.totalIssued,
             lastUnitPrice: item.lastUnitPrice,
-            estimatedValue: (item.totalPurchased - item.totalIssued) * item.lastUnitPrice,
-            transactions: item.transactions.sort((a, b) => new Date(a.date) - new Date(b.date))
+            estimatedValue: ((item.totalPurchased + item.totalReturn) - item.totalIssued) * item.lastUnitPrice,
+            transactions: item.transactions.sort((a, b) => new Date(b.date) - new Date(a.date))
         })).sort((a, b) => a.itemName.localeCompare(b.itemName));
 
         res.json(stockList);

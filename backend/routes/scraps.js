@@ -35,35 +35,6 @@ router.get('/:id', async (req, res) => {
 // Create scrap
 router.post('/', async (req, res) => {
     try {
-        const { sourceDocType, sourceReference } = req.body;
-
-        // Validate source document
-        if (!sourceDocType) {
-            return res.status(400).json({ message: 'Source document type is required.' });
-        }
-
-        // COMPLAINT source: validate complaint exists and is Open
-        if (sourceDocType === 'COMPLAINT') {
-            if (!sourceReference || !sourceReference.trim()) {
-                return res.status(400).json({ message: 'Complaint reference is required when source is COMPLAINT.' });
-            }
-            const Complaint = require('../models/Complaint');
-            const complaint = await Complaint.findOne({ id: sourceReference.trim() });
-            if (!complaint) {
-                return res.status(400).json({ message: `Complaint '${sourceReference}' does not exist.` });
-            }
-            if (complaint.status !== 'Open') {
-                return res.status(400).json({ message: `Complaint '${sourceReference}' is not Open. Only Open complaints can be referenced.` });
-            }
-        }
-
-        // Non-ROUTINE_WORK and non-COMPLAINT sources require a reference
-        if (sourceDocType !== 'ROUTINE_WORK' && sourceDocType !== 'COMPLAINT') {
-            if (!sourceReference || !sourceReference.trim()) {
-                return res.status(400).json({ message: 'A reference number is required for this source document type.' });
-            }
-        }
-
         let counter = await Counter.findById('scrap');
         if (!counter) {
             counter = new Counter({ _id: 'scrap', seq: 0 });
@@ -74,20 +45,35 @@ router.post('/', async (req, res) => {
         const srNo = `SR-${String(counter.seq).padStart(3, '0')}`;
         const now = new Date();
 
+        const items = (req.body.items || []).map(item => ({
+            tradeSection: item.tradeSection || req.body.tradeSection || 'MASONRY',
+            itemId: item.itemId || '',
+            itemName: item.itemName,
+            quantity: Number(item.quantity) || 0,
+            unit: item.unit || 'Pieces',
+            sourceDocType: item.sourceDocType || req.body.sourceDocType || 'ROUTINE_WORK',
+            sourceReference: (item.sourceDocType || req.body.sourceDocType) === 'ROUTINE_WORK' ? '' : (item.sourceReference || req.body.sourceReference || '').trim(),
+            description: item.description || ''
+        }));
+
+        const firstItem = items[0] || {};
+
         const scrap = new Scrap({
             srNo,
-            date: req.body.date,
-            tradeSection: req.body.tradeSection,
-            itemId: req.body.itemId,
-            itemName: req.body.itemName,
-            quantity: req.body.quantity,
-            unit: req.body.unit,
-            description: req.body.description || '',
-            returnedBy: req.body.returnedBy,
-            receivedBy: req.body.receivedBy || 'Store Keeper',
+            date: req.body.date || now,
             location: req.body.location || '',
-            sourceDocType,
-            sourceReference: sourceDocType === 'ROUTINE_WORK' ? '' : (sourceReference || '').trim(),
+            returnedBy: req.body.returnedBy,
+            sourceOfShifting: req.body.sourceOfShifting || '',
+            tradeSection: req.body.tradeSection || firstItem.tradeSection || 'MASONRY',
+            itemId: req.body.itemId || firstItem.itemId || '',
+            itemName: req.body.itemName || firstItem.itemName || '',
+            quantity: req.body.quantity || firstItem.quantity || 0,
+            unit: req.body.unit || firstItem.unit || 'Pieces',
+            items,
+            description: req.body.description || '',
+            receivedBy: req.body.receivedBy || 'Store Keeper',
+            sourceDocType: req.body.sourceDocType || firstItem.sourceDocType || 'ROUTINE_WORK',
+            sourceReference: req.body.sourceReference || firstItem.sourceReference || '',
             remarks: req.body.remarks || '',
             createdBy: 'Admin',
             createdAt: now,
@@ -111,31 +97,34 @@ router.put('/:id', async (req, res) => {
             return res.status(404).json({ message: 'Scrap not found' });
         }
 
-        // Validate if source is changing to COMPLAINT
-        if (req.body.sourceDocType === 'COMPLAINT' && req.body.sourceReference) {
-            const Complaint = require('../models/Complaint');
-            const complaint = await Complaint.findOne({ id: req.body.sourceReference.trim() });
-            if (!complaint) {
-                return res.status(400).json({ message: `Complaint '${req.body.sourceReference}' does not exist.` });
-            }
-            if (complaint.status !== 'Open') {
-                return res.status(400).json({ message: `Complaint '${req.body.sourceReference}' is not Open.` });
-            }
-        }
+        const items = req.body.items ? req.body.items.map(item => ({
+            tradeSection: item.tradeSection || req.body.tradeSection || 'MASONRY',
+            itemId: item.itemId || '',
+            itemName: item.itemName,
+            quantity: Number(item.quantity) || 0,
+            unit: item.unit || 'Pieces',
+            sourceDocType: item.sourceDocType || 'ROUTINE_WORK',
+            sourceReference: item.sourceDocType === 'ROUTINE_WORK' ? '' : (item.sourceReference || '').trim(),
+            description: item.description || ''
+        })) : scrap.items;
+
+        const firstItem = items[0] || {};
 
         Object.assign(scrap, {
             date: req.body.date || scrap.date,
-            tradeSection: req.body.tradeSection || scrap.tradeSection,
-            itemId: req.body.itemId || scrap.itemId,
-            itemName: req.body.itemName || scrap.itemName,
-            quantity: req.body.quantity || scrap.quantity,
-            unit: req.body.unit || scrap.unit,
-            description: req.body.description !== undefined ? req.body.description : scrap.description,
-            returnedBy: req.body.returnedBy || scrap.returnedBy,
-            receivedBy: req.body.receivedBy || scrap.receivedBy,
             location: req.body.location !== undefined ? req.body.location : scrap.location,
-            sourceDocType: req.body.sourceDocType || scrap.sourceDocType,
-            sourceReference: req.body.sourceDocType === 'ROUTINE_WORK' ? '' : (req.body.sourceReference || scrap.sourceReference),
+            returnedBy: req.body.returnedBy || scrap.returnedBy,
+            sourceOfShifting: req.body.sourceOfShifting !== undefined ? req.body.sourceOfShifting : scrap.sourceOfShifting,
+            tradeSection: req.body.tradeSection || firstItem.tradeSection || scrap.tradeSection,
+            itemId: req.body.itemId || firstItem.itemId || scrap.itemId,
+            itemName: req.body.itemName || firstItem.itemName || scrap.itemName,
+            quantity: req.body.quantity || firstItem.quantity || scrap.quantity,
+            unit: req.body.unit || firstItem.unit || scrap.unit,
+            items,
+            description: req.body.description !== undefined ? req.body.description : scrap.description,
+            receivedBy: req.body.receivedBy || scrap.receivedBy,
+            sourceDocType: req.body.sourceDocType || firstItem.sourceDocType || scrap.sourceDocType,
+            sourceReference: req.body.sourceReference !== undefined ? req.body.sourceReference : scrap.sourceReference,
             remarks: req.body.remarks !== undefined ? req.body.remarks : scrap.remarks,
             modifiedBy: 'Admin',
             modifiedAt: new Date()

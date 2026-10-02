@@ -4,20 +4,34 @@ const mongoose = require('mongoose');
 const scrapSchema = new mongoose.Schema({
     srNo: { type: String, required: true, unique: true },
     date: { type: Date, required: true },
-    tradeSection: { type: String, enum: ['MASONRY', 'PLUMBING', 'CARPENTRY', 'PAINTING'], required: true },
-    itemId: { type: String, required: true },
-    itemName: { type: String, required: true },
-    quantity: { type: Number, required: true },
-    unit: { type: String, enum: ['Bags', 'Kg', 'Pieces', 'Liters', 'Meters', 'Cft', 'Tins', 'Rolls'], required: true },
-    description: String,
-    returnedBy: { type: String, required: true },
-    receivedBy: String,
     location: { type: String },
-    // Flat single source document (one per entry)
+    returnedBy: { type: String, required: true },
+    sourceOfShifting: { type: String, default: '' },
+    tradeSection: { type: String, enum: ['MASONRY', 'PLUMBING', 'CARPENTRY', 'PAINTING'] },
+    itemId: { type: String },
+    itemName: { type: String },
+    quantity: { type: Number },
+    unit: { type: String, enum: ['Bags', 'Kg', 'Pieces', 'Liters', 'Meters', 'Cft', 'Tins', 'Rolls'] },
+    // Multi-item support per entry
+    items: [{
+        tradeSection: { type: String, enum: ['MASONRY', 'PLUMBING', 'CARPENTRY', 'PAINTING'] },
+        itemId: String,
+        itemName: String,
+        quantity: Number,
+        unit: { type: String, enum: ['Bags', 'Kg', 'Pieces', 'Liters', 'Meters', 'Cft', 'Tins', 'Rolls'] },
+        sourceDocType: {
+            type: String,
+            enum: ['COMPLAINT', 'APPROVAL', 'HSE_ANOMALY', 'EMAIL', 'ROUTINE_WORK']
+        },
+        sourceReference: { type: String, default: '' },
+        description: String
+    }],
+    description: String,
+    receivedBy: String,
+    // Top-level legacy fallback
     sourceDocType: {
         type: String,
-        enum: ['COMPLAINT', 'APPROVAL', 'HSE_ANOMALY', 'EMAIL', 'ROUTINE_WORK'],
-        required: true
+        enum: ['COMPLAINT', 'APPROVAL', 'HSE_ANOMALY', 'EMAIL', 'ROUTINE_WORK']
     },
     sourceReference: {
         type: String,

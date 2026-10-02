@@ -20,33 +20,52 @@ export const UNITS = [
  * - ROUTINE_WORK    : No reference number required.
  */
 export const SOURCE_DOC_TYPES = [
-    { value: 'COMPLAINT',    label: 'Complaint',    requiresRef: true,  refIsDropdown: true  },
-    { value: 'APPROVAL',     label: 'Approval',     requiresRef: true,  refIsDropdown: false },
-    { value: 'HSE_ANOMALY',  label: 'HSE Anomaly',  requiresRef: true,  refIsDropdown: false },
-    { value: 'EMAIL',        label: 'Email',        requiresRef: true,  refIsDropdown: false },
+    { value: 'COMPLAINT', label: 'Complaint', requiresRef: true, refIsDropdown: true },
+    { value: 'APPROVAL', label: 'Approval', requiresRef: true, refIsDropdown: false },
+    { value: 'HSE_ANOMALY', label: 'HSE Anomaly', requiresRef: true, refIsDropdown: false },
+    { value: 'EMAIL', label: 'Email', requiresRef: true, refIsDropdown: false },
     { value: 'ROUTINE_WORK', label: 'Routine Work', requiresRef: false, refIsDropdown: false }
 ];
 
 /** Status options for Complaints — exactly two */
 export const COMPLAINT_STATUSES = [
-    { value: 'Open',      label: 'Open' },
+    { value: 'Open', label: 'Open' },
     { value: 'Completed', label: 'Completed' }
 ];
 
 export const STATIONS = [
-    'Head Office Lahore',
-    'Lahore Region',
-    'Faisalabad Region',
-    'Multan Region',
-    'Gujranwala Region',
-    'Sahiwal Region',
-    'Sheikhupura Region',
-    'Islamabad Region',
-    'Sargodha Region',
-    'Bahawalpur Region',
-    'Rawalpindi Region',
-    'Peshawar Region',
-    'Gujrat Region'
+    'Wah Terminal',
+    'Transmission Office Kohat',
+    'Executive Transit/Mess I-9 Islamabad',
+    'Main Stores (Wah)',
+    'Repeater / Compressor Station C-3 / CC-1 (Haranpur)',
+    'Repeater Station C-4 (Choa Saiden Shah)',
+    'Repeater Station C-4A (Choa Saiden Shah Hilltop)',
+    'Repeater Station C-5 (Chakwal)',
+    'Repeater / Compressor Station C-6/CC-3 (Gali Jagir)',
+    'Repeater Station C-7 (Fatehjang)',
+    'Repeater Station C-8 (Wah)',
+    'Repeater Station C-9 (Kamra)',
+    'Repeater Station C-9A (Hattian)',
+    'Repeater Station C-10 (Nowshera)',
+    'Repeater Station F-3 (Daudkhel)',
+    'Compressor Station FC-1 (Dhullian)',
+    'Telecom Radion Repeater Station (Thandiyani)',
+    'Telecom Radio Repeater Station SMS Dandot',
+    'SMS Ranial',
+    'SMS Naugazi',
+    'SMS Abbottabad',
+    'SMS Peshawar',
+    'SMS D.I Khan',
+    'End Point SMS Murree',
+    'Attock Crossing',
+    'Kabul River Crossing',
+    'Jehlum River Crossing',
+    'Indus River Crossing (Khushal Garh)',
+    'Adhi Zero Point Valve Assembly',
+    'Shahpur Zero Valve Assembly',
+
+
 ];
 
 export const EXPENSE_HEADS = [

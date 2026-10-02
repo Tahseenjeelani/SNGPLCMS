@@ -1,6 +1,7 @@
+// src/components/IssueRegister/IssueForm.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { FaSave, FaTimes, FaInfoCircle, FaUndo } from 'react-icons/fa';
+import { FaSave, FaTimes, FaInfoCircle } from 'react-icons/fa';
 import { TRADE_SECTIONS, UNITS, SOURCE_DOC_TYPES, STATIONS, getSourceDocConfig } from '../../data/preDefinedLists';
 import { api } from '../../services/api';
 
@@ -14,14 +15,16 @@ const IssueForm = () => {
         tradeSection: 'MASONRY',
         itemId: '',
         itemName: '',
-        quantity: 1,
+        issuedQuantity: 1,
         unit: 'Pieces',
+        returnQuantity: 0,
+        returnUnit: 'Pieces',
+        vehicleNo: '',
         description: '',
         issuedTo: '',
         issuedBy: 'Store Keeper',
-        station: STATIONS[0] || 'Head Office Lahore',
+        station: STATIONS[0] || 'Wah Terminal',
         location: '',
-        isSiteReturn: false,
         sourceDocType: 'COMPLAINT',
         sourceReference: '',
         remarks: ''
@@ -32,7 +35,6 @@ const IssueForm = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // Derived: config for selected source type
     const sourceConfig = getSourceDocConfig(formData.sourceDocType);
 
     useEffect(() => {
@@ -91,7 +93,7 @@ const IssueForm = () => {
                 itemMap[key].currentStock += Number(m.quantity) || 0;
             });
 
-            // 3. Issues (Deduct normal issues, add site returns)
+            // 3. Issues & Returns
             issues.forEach(iss => {
                 const trade = iss.tradeSection || 'MASONRY';
                 const name = (iss.itemName || '').trim();
@@ -106,12 +108,9 @@ const IssueForm = () => {
                         currentStock: 0
                     };
                 }
-                const qty = Number(iss.quantity) || 0;
-                if (iss.isSiteReturn) {
-                    itemMap[key].currentStock += qty;
-                } else {
-                    itemMap[key].currentStock -= qty;
-                }
+                const issuedQty = Number(iss.issuedQuantity !== undefined ? iss.issuedQuantity : (iss.isSiteReturn ? 0 : iss.quantity)) || 0;
+                const returnQty = Number(iss.returnQuantity !== undefined ? iss.returnQuantity : (iss.isSiteReturn ? iss.quantity : 0)) || 0;
+                itemMap[key].currentStock += (returnQty - issuedQty);
             });
 
             setAllStockItems(Object.values(itemMap));
@@ -139,58 +138,43 @@ const IssueForm = () => {
     }, []);
 
     const loadIssue = async () => {
+        let issue = null;
         try {
-            const issue = await api.getIssue(id);
-            if (issue && issue.irNo) {
-                setFormData({
-                    issueDate: issue.issueDate ? new Date(issue.issueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                    tradeSection: issue.tradeSection || 'MASONRY',
-                    itemId: issue.itemId || '',
-                    itemName: issue.itemName || '',
-                    quantity: issue.quantity || 1,
-                    unit: issue.unit || 'Pieces',
-                    description: issue.description || '',
-                    issuedTo: issue.issuedTo || '',
-                    issuedBy: issue.issuedBy || 'Store Keeper',
-                    station: issue.station || STATIONS[0],
-                    location: issue.location || '',
-                    isSiteReturn: issue.isSiteReturn || false,
-                    sourceDocType: issue.sourceDocType || 'COMPLAINT',
-                    sourceReference: issue.sourceReference || '',
-                    remarks: issue.remarks || ''
-                });
-                return;
-            }
+            issue = await api.getIssue(id);
         } catch (_) {}
 
-        try {
-            const data = JSON.parse(localStorage.getItem('snglData'));
-            const issue = (data?.issues || []).find(i => i.irNo === id);
-            if (issue) {
-                setFormData({
-                    issueDate: issue.issueDate ? new Date(issue.issueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                    tradeSection: issue.tradeSection || 'MASONRY',
-                    itemId: issue.itemId || '',
-                    itemName: issue.itemName || '',
-                    quantity: issue.quantity || 1,
-                    unit: issue.unit || 'Pieces',
-                    description: issue.description || '',
-                    issuedTo: issue.issuedTo || '',
-                    issuedBy: issue.issuedBy || 'Store Keeper',
-                    station: issue.station || STATIONS[0],
-                    location: issue.location || '',
-                    isSiteReturn: issue.isSiteReturn || false,
-                    sourceDocType: issue.sourceDocType || 'COMPLAINT',
-                    sourceReference: issue.sourceReference || '',
-                    remarks: issue.remarks || ''
-                });
+        if (!issue || !issue.irNo) {
+            try {
+                const data = JSON.parse(localStorage.getItem('snglData'));
+                issue = (data?.issues || []).find(i => i.irNo === id);
+            } catch (e) {
+                console.error('Error loading issue:', e);
             }
-        } catch (e) {
-            console.error('Error loading issue:', e);
+        }
+
+        if (issue) {
+            setFormData({
+                issueDate: issue.issueDate ? new Date(issue.issueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                tradeSection: issue.tradeSection || 'MASONRY',
+                itemId: issue.itemId || '',
+                itemName: issue.itemName || '',
+                issuedQuantity: issue.issuedQuantity !== undefined ? issue.issuedQuantity : (issue.isSiteReturn ? 0 : issue.quantity || 0),
+                unit: issue.unit || 'Pieces',
+                returnQuantity: issue.returnQuantity !== undefined ? issue.returnQuantity : (issue.isSiteReturn ? issue.quantity || 0 : 0),
+                returnUnit: issue.returnUnit || issue.unit || 'Pieces',
+                vehicleNo: issue.vehicleNo || '',
+                description: issue.description || '',
+                issuedTo: issue.issuedTo || '',
+                issuedBy: issue.issuedBy || 'Store Keeper',
+                station: issue.station || STATIONS[0],
+                location: issue.location || '',
+                sourceDocType: issue.sourceDocType || 'COMPLAINT',
+                sourceReference: issue.sourceReference || '',
+                remarks: issue.remarks || ''
+            });
         }
     };
 
-    // Available items filtered by selected trade AND stock > 0 (or currently selected item)
     const availableItems = allStockItems.filter(item =>
         item.tradeSection === formData.tradeSection &&
         (item.currentStock > 0 || item.itemId === formData.itemId)
@@ -198,11 +182,8 @@ const IssueForm = () => {
 
     const selectedStockItem = allStockItems.find(s => s.itemId === formData.itemId || (s.itemName.toLowerCase() === formData.itemName.toLowerCase() && s.tradeSection === formData.tradeSection));
 
-    const isCementItem = (formData.itemName || '').toLowerCase().includes('cement');
-
     const handleChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        const val = type === 'checkbox' ? checked : value;
+        const { name, value } = e.target;
 
         if (name === 'tradeSection') {
             setFormData(prev => ({
@@ -210,7 +191,8 @@ const IssueForm = () => {
                 tradeSection: value,
                 itemId: '',
                 itemName: '',
-                unit: 'Pieces'
+                unit: 'Pieces',
+                returnUnit: 'Pieces'
             }));
             return;
         }
@@ -226,23 +208,26 @@ const IssueForm = () => {
                 ...prev,
                 itemId: value,
                 itemName: item ? item.itemName : '',
-                unit: item ? item.unit : prev.unit
+                unit: item ? item.unit : prev.unit,
+                returnUnit: item ? item.unit : prev.returnUnit
             }));
             return;
         }
 
-        setFormData(prev => ({ ...prev, [name]: val }));
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const validate = () => {
         if (!formData.itemId && !formData.itemName) {
-            return 'Please select or enter an item.';
+            return 'Please select an item.';
         }
-        if (!formData.quantity || Number(formData.quantity) <= 0) {
-            return 'Quantity must be greater than 0.';
+        const issQty = Number(formData.issuedQuantity) || 0;
+        const retQty = Number(formData.returnQuantity) || 0;
+        if (issQty <= 0 && retQty <= 0) {
+            return 'Either Issued Quantity or Return Quantity must be greater than 0.';
         }
         if (!formData.issuedTo.trim()) {
-            return '"Issued To" is required.';
+            return '"Issued To / Worker Name" is required.';
         }
         if (!formData.sourceDocType) {
             return 'Source Document Type is required.';
@@ -271,9 +256,14 @@ const IssueForm = () => {
 
         setLoading(true);
 
+        const issQty = Number(formData.issuedQuantity) || 0;
+        const retQty = Number(formData.returnQuantity) || 0;
+
         const payload = {
             ...formData,
-            quantity: Number(formData.quantity),
+            quantity: issQty,
+            issuedQuantity: issQty,
+            returnQuantity: retQty,
             sourceReference: formData.sourceDocType === 'ROUTINE_WORK' ? '' : formData.sourceReference.trim()
         };
 
@@ -344,7 +334,7 @@ const IssueForm = () => {
             )}
 
             <form onSubmit={handleSubmit} className="card">
-                {/* Basic Fields */}
+                {/* Basic Header Fields */}
                 <div className="form-row">
                     <div className="form-group">
                         <label className="form-label">Issue Date *</label>
@@ -360,79 +350,79 @@ const IssueForm = () => {
                             ))}
                         </select>
                     </div>
-                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', marginTop: '24px' }}>
-                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600', color: formData.isSiteReturn ? '#059669' : '#374151' }}>
-                            <input
-                                type="checkbox"
-                                name="isSiteReturn"
-                                checked={formData.isSiteReturn}
-                                onChange={handleChange}
-                                style={{ width: '18px', height: '18px', accentColor: '#059669' }}
-                            />
-                            <FaUndo style={{ color: formData.isSiteReturn ? '#059669' : '#6b7280' }} />
-                            Is Site Return? (Adds stock back to store)
-                        </label>
+                    <div className="form-group">
+                        <label className="form-label">Vehicle No. (Issued/Returned via)</label>
+                        <input
+                            type="text"
+                            name="vehicleNo"
+                            value={formData.vehicleNo}
+                            onChange={handleChange}
+                            className="form-control"
+                            placeholder="e.g. LES-1234 or PickUp 02"
+                        />
                     </div>
                 </div>
 
-                <div className="form-row">
-                    <div className="form-group">
-                        <label className="form-label">
-                            Item (Stock &gt; 0 for {formData.tradeSection}) *
-                        </label>
-                        <select name="itemId" value={formData.itemId}
-                            onChange={handleChange} className="form-control" required>
-                            <option value="">— Select Trade Item —</option>
-                            {availableItems.map(item => (
-                                <option key={item.itemId} value={item.itemId}>
-                                    {item.itemName} (Stock: {item.currentStock} {item.unit})
-                                </option>
-                            ))}
-                        </select>
-                        {availableItems.length === 0 && (
-                            <p style={{ marginTop: '4px', fontSize: '0.78rem', color: '#dc2626' }}>
-                                ⚠️ No items with available stock (&gt; 0) found for trade {formData.tradeSection}.
-                            </p>
-                        )}
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">
-                            Quantity *
-                            {selectedStockItem && (
-                                <span style={{
-                                    marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem',
-                                    background: selectedStockItem.currentStock > 0 ? '#dcfce7' : '#fef2f2',
-                                    color: selectedStockItem.currentStock > 0 ? '#166534' : '#991b1b',
-                                    fontWeight: '600'
-                                }}>
-                                    Stock Bal: {selectedStockItem.currentStock} {selectedStockItem.unit}
-                                </span>
-                            )}
-                        </label>
-                        <input type="number" name="quantity" value={formData.quantity}
-                            onChange={handleChange} className="form-control" min="1" required />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">
-                            Unit {isCementItem ? '(Cement: Bags / Kg allowed)' : '(Locked to Item Unit)'}
-                        </label>
-                        {isCementItem ? (
-                            <select name="unit" value={formData.unit}
-                                onChange={handleChange} className="form-control">
-                                <option value="Bags">Bags</option>
-                                <option value="Kg">Kg</option>
+                {/* Item & Quantities Section */}
+                <div className="items-section" style={{ background: '#f8fafc', borderRadius: '8px', padding: '16px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
+                    <h3 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '12px', color: '#1e293b' }}>
+                        Item & Stock Quantities
+                    </h3>
+                    <div className="form-row">
+                        <div className="form-group" style={{ flex: 2 }}>
+                            <label className="form-label">
+                                Item Name *
+                            </label>
+                            <select name="itemId" value={formData.itemId}
+                                onChange={handleChange} className="form-control" required>
+                                <option value="">— Select Trade Item —</option>
+                                {availableItems.map(item => (
+                                    <option key={item.itemId} value={item.itemId}>
+                                        {item.itemName} (Stock: {item.currentStock} {item.unit})
+                                    </option>
+                                ))}
                             </select>
-                        ) : (
+                            {selectedStockItem && (
+                                <p style={{ marginTop: '6px', fontSize: '0.8rem', color: selectedStockItem.currentStock > 0 ? '#166534' : '#dc2626', fontWeight: '500' }}>
+                                    Current Store Balance: <strong>{selectedStockItem.currentStock} {selectedStockItem.unit}</strong>
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="form-row" style={{ marginTop: '12px' }}>
+                        <div className="form-group">
+                            <label className="form-label" style={{ color: '#dc2626', fontWeight: '600' }}>
+                                Issued Quantity (Decreases Stock)
+                            </label>
+                            <input type="number" name="issuedQuantity" value={formData.issuedQuantity}
+                                onChange={handleChange} className="form-control" min="0" />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Issued Unit</label>
                             <input
                                 type="text"
                                 name="unit"
                                 value={formData.unit}
-                                onChange={handleChange}
                                 className="form-control"
                                 disabled={true}
-                                title="Unit is auto-selected from stock item and cannot be changed (except for Cement)"
                             />
-                        )}
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label" style={{ color: '#059669', fontWeight: '600' }}>
+                                Return Quantity (Increases Stock)
+                            </label>
+                            <input type="number" name="returnQuantity" value={formData.returnQuantity}
+                                onChange={handleChange} className="form-control" min="0" />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Return Unit</label>
+                            <select name="returnUnit" value={formData.returnUnit} onChange={handleChange} className="form-control">
+                                {UNITS.map(u => (
+                                    <option key={u} value={u}>{u}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -459,7 +449,7 @@ const IssueForm = () => {
                             value={formData.location}
                             onChange={handleChange}
                             className="form-control"
-                            placeholder="e.g. Block C, Plant Area"
+                            placeholder="e.g. Block C, Compressor Room"
                             required
                         />
                     </div>
@@ -467,13 +457,13 @@ const IssueForm = () => {
 
                 <div className="form-row">
                     <div className="form-group">
-                        <label className="form-label">Issued To / Returned By *</label>
+                        <label className="form-label">Issued To / Handed To *</label>
                         <input type="text" name="issuedTo" value={formData.issuedTo}
                             onChange={handleChange} className="form-control"
-                            placeholder="Worker / Supervisor name" required />
+                            placeholder="Worker / Person name" required />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">Store In-charge / Keeper</label>
+                        <label className="form-label">Store Keeper / In-Charge</label>
                         <input type="text" name="issuedBy" value={formData.issuedBy}
                             onChange={handleChange} className="form-control"
                             placeholder="Store Keeper name" />
@@ -484,16 +474,15 @@ const IssueForm = () => {
                     <label className="form-label">Description</label>
                     <textarea name="description" value={formData.description}
                         onChange={handleChange} className="form-control" rows="2"
-                        placeholder="Optional description..." />
+                        placeholder="Optional details about work..." />
                 </div>
 
-                {/* ─── Source Document Section ─────────────────────────────── */}
+                {/* Source Document Section */}
                 <div className="items-section" style={{ background: '#f8fafc', borderRadius: '8px', padding: '16px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
                     <h3 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '12px', color: '#1e293b' }}>
                         Source Document <span style={{ color: '#dc2626' }}>*</span>
                     </h3>
 
-                    {/* Type Selector */}
                     <div className="form-group">
                         <label className="form-label">Document Type</label>
                         <select
@@ -509,7 +498,6 @@ const IssueForm = () => {
                         </select>
                     </div>
 
-                    {/* Dynamic Reference Field */}
                     {formData.sourceDocType === 'COMPLAINT' && (
                         <div className="form-group">
                             <label className="form-label">Select Open Complaint *</label>
@@ -531,12 +519,6 @@ const IssueForm = () => {
                                     ))
                                 )}
                             </select>
-                            {openComplaints.length === 0 && (
-                                <p style={{ marginTop: '6px', fontSize: '0.8rem', color: '#ef4444' }}>
-                                    <FaInfoCircle style={{ marginRight: '4px' }} />
-                                    No Open complaints exist. Create a complaint first, or choose a different source type.
-                                </p>
-                            )}
                         </div>
                     )}
 
@@ -568,12 +550,12 @@ const IssueForm = () => {
                     <label className="form-label">Remarks</label>
                     <textarea name="remarks" value={formData.remarks}
                         onChange={handleChange} className="form-control" rows="2"
-                        placeholder="Optional notes..." />
+                        placeholder="Optional remarks..." />
                 </div>
 
                 <div className="form-actions">
                     <button type="submit" className="btn btn-primary" disabled={loading}>
-                        <FaSave /> {loading ? 'Saving...' : (isEdit ? 'Update Issue' : 'Create Issue')}
+                        <FaSave /> {loading ? 'Saving...' : (isEdit ? 'Update Issue' : 'Create Issue Entry')}
                     </button>
                 </div>
             </form>

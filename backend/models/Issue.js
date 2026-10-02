@@ -7,8 +7,12 @@ const issueSchema = new mongoose.Schema({
     tradeSection: { type: String, enum: ['MASONRY', 'PLUMBING', 'CARPENTRY', 'PAINTING'], required: true },
     itemId: { type: String, required: true },
     itemName: { type: String, required: true },
-    quantity: { type: Number, required: true },
+    quantity: { type: Number, default: 0 }, // Backwards compatibility for total net or issued quantity
+    issuedQuantity: { type: Number, default: 0 },
+    returnQuantity: { type: Number, default: 0 },
     unit: { type: String, enum: ['Bags', 'Kg', 'Pieces', 'Liters', 'Meters', 'Cft', 'Tins', 'Rolls'], required: true },
+    returnUnit: { type: String, enum: ['Bags', 'Kg', 'Pieces', 'Liters', 'Meters', 'Cft', 'Tins', 'Rolls'] },
+    vehicleNo: { type: String, default: '' },
     description: String,
     issuedTo: { type: String, required: true },
     issuedBy: String,
